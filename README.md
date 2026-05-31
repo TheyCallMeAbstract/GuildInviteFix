@@ -14,6 +14,22 @@ A client-side Fabric mod that batch-sends guild invites to multiple players at o
 /ginv [player1] [player2] [player3] ...
 ```
 
+Invite specific players by name. Supports tab completion from the tab list.
+
+```
+/glvl <level>
+```
+
+Invite all players in the tab list with a guild level **≥** the given threshold.
+Requires being in a SkyBlock instance. Players without a level (NPCs) are skipped.
+
+```
+/gfreeze
+```
+
+Toggle freeze on the invite queue. When frozen, no invites are sent but new targets are still queued.
+Run again to resume sending.
+
 
 ## Installation
 
