@@ -20,12 +20,15 @@ import java.util.stream.Collectors;
 public class GinvCommand {
 
     private static final Set<String> ginvTargets = new LinkedHashSet<>();
+    private static final LinkedList<String> pendingInvites = new LinkedList<>();
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "GinvScheduler");
         t.setDaemon(true);
         return t;
     });
     private static final Random random = new Random();
+
+    private static volatile boolean frozen = false;
 
     /**
      * Suggests player names from the tab list, excluding names already typed.
@@ -86,7 +89,7 @@ public class GinvCommand {
     /**
      * Called when the player provides usernames.
      * Parses, deduplicates, stores them, then sends /guild invite for each
-     * with a random 0-1s delay between each command.
+     * with a random 220-720ms delay between each command.
      */
     private static int executeWithArgs(CommandContext<FabricClientCommandSource> context) {
         String raw = StringArgumentType.getString(context, "names");
@@ -103,33 +106,11 @@ public class GinvCommand {
             return 0;
         }
 
-        ginvTargets.clear();
-        ginvTargets.addAll(parsed);
+        queueAndSchedule(parsed);
 
         context.getSource().sendFeedback(Component.literal(
-                "§a[Ginv] §fQueued §e" + ginvTargets.size() + " §fguild invite(s)."
+                "§a[Ginv] §fQueued §e" + parsed.size() + " §fguild invite(s)."
         ));
-
-        // Schedule each /guild invite command
-        List<String> targetList = List.copyOf(ginvTargets);
-        long delay = 0;
-
-        for (int i = 0; i < targetList.size(); i++) {
-            String playerName = targetList.get(i);
-            final long scheduledDelay = delay;
-
-            scheduler.schedule(() -> {
-                ClientPacketListener connection = Minecraft.getInstance().getConnection();
-                if (connection != null) {
-                    connection.sendCommand("guild invite " + playerName);
-                }
-            }, scheduledDelay, TimeUnit.MILLISECONDS);
-
-            // Add random 0-500ms delays for good measure.
-            if (i < targetList.size() - 1) {
-                delay += random.nextInt(501);
-            }
-        }
 
         return Command.SINGLE_SUCCESS;
     }
@@ -144,15 +125,64 @@ public class GinvCommand {
                     "§c[Ginv] §fNo targets set. Usage: /ginv <player1> [player2] ..."
             ));
         } else {
+            String status = frozen ? " §c[FROZEN]" : "";
             context.getSource().sendFeedback(Component.literal(
-                    "§a[Ginv] §fCurrent targets (" + ginvTargets.size() + "): §e" + String.join("§f, §e", ginvTargets)
+                    "§a[Ginv] §fCurrent targets (" + ginvTargets.size() + "): §e" + String.join("§f, §e", ginvTargets) + status
             ));
         }
         return Command.SINGLE_SUCCESS;
     }
 
+    /**
+     * Adds targets to the shared queue and starts processing.
+     * Called by all commands that need to batch-invite.
+     */
+    public static void queueAndSchedule(Collection<String> targets) {
+        ginvTargets.addAll(targets);
+        pendingInvites.addAll(targets);
+        processNext();
+    }
+
+    /**
+     * Processes the next invite in the queue.
+     * Chains itself with a random delay until the queue is empty or frozen.
+     */
+    private static void processNext() {
+        if (pendingInvites.isEmpty()) return;
+        scheduler.schedule(() -> {
+            if (frozen) return; // will be resumed by toggleFreeze()
+            String name = pendingInvites.poll();
+            if (name != null) {
+                ClientPacketListener connection = Minecraft.getInstance().getConnection();
+                if (connection != null) {
+                    connection.sendCommand("guild invite " + name);
+                }
+            }
+            processNext();
+        }, 220 + random.nextInt(501), TimeUnit.MILLISECONDS);
+    }
+
+    // --- Freeze control ---
+
+    public static boolean isFrozen() {
+        return frozen;
+    }
+
+    public static void toggleFreeze() {
+        frozen = !frozen;
+        if (!frozen) {
+            processNext(); // resume processing
+        }
+    }
+
+    // --- Target accessors ---
+
     public static Set<String> getGinvTargets() {
         return Collections.unmodifiableSet(ginvTargets);
+    }
+
+    public static int getPendingCount() {
+        return pendingInvites.size();
     }
 
     public static void setGinvTargets(Set<String> targets) {
@@ -162,5 +192,6 @@ public class GinvCommand {
 
     public static void clearTargets() {
         ginvTargets.clear();
+        pendingInvites.clear();
     }
 }
