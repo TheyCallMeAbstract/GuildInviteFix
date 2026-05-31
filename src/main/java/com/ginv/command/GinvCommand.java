@@ -40,9 +40,10 @@ public class GinvCommand {
             return builder.buildFuture();
         }
 
-        // Collect online player names in ur current server.
+        // Collect online player names, filter out NPCs (names starting with !)
         List<String> onlineNames = connection.getOnlinePlayers().stream()
                 .map(info -> info.getProfile().name())
+                .filter(name -> !name.startsWith("!"))
                 .toList();
         String[] tokens = input.split(" ", -1);
         boolean startingNewToken = input.endsWith(" ");
