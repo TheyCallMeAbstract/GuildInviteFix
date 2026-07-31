@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Mod version (e.g. 1.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Get version info
+        id: versions
+        run: |
+          MOD_VERSION=$(grep -oP 'mod_version\s*=\s*\K.+' gradle.properties)
+          MC_VERSION=$(grep -oP 'minecraft_version\s*=\s*\K.+' gradle.properties)
+          echo "mod_version=$MOD_VERSION" >> $GITHUB_OUTPUT
+          echo "minecraft_version=$MC_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'microsoft'
+          java-version: ${{ steps.versions.outputs.minecraft_version == '26.2' && '25' || '21' }}
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build
+        run: ./gradlew build
+
+      - name: Find release JAR
+        id: find-jar
+        run: |
+          JAR_FILE=$(find build/libs -maxdepth 1 -type f \
+            -name "*.jar" \
+            ! -name "*-dev*.jar" \
+            ! -name "*-sources*.jar" \
+            ! -name "*-javadoc*.jar" \
+            | head -n 1)
+          echo "jar_file=$JAR_FILE" >> $GITHUB_OUTPUT
+          echo "Found JAR: $JAR_FILE"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}+mc${{ steps.versions.outputs.minecraft_version }}
+          name: "GuildInviteFix ${{ inputs.version }} for Minecraft ${{ steps.versions.outputs.minecraft_version }}"
+          body: |
+            ## GuildInviteFix ${{ inputs.version }}
+
+            **Minecraft:** ${{ steps.versions.outputs.minecraft_version }}
+            **Mod Loader:** Fabric
+            **Java:** ${{ steps.versions.outputs.minecraft_version == '26.2' && '25' || '21' }}
+
+            ### Installation
+            1. Install Fabric Loader for Minecraft ${{ steps.versions.outputs.minecraft_version }}
+            2. Download the JAR from this release
+            3. Place in `.minecraft/mods/` folder
+            4. Install Fabric API
+          files: |
+            ${{ steps.find-jar.outputs.jar_file }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to Modrinth
+        uses: Kir-Antipov/mc-publish@v3.3
+        if: ${{ secrets.MODRINTH_TOKEN != '' }}
+        with:
+          modrinth-id: ${{ secrets.MODRINTH_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: v${{ inputs.version }}+mc${{ steps.versions.outputs.minecraft_version }}
+          name: "GuildInviteFix ${{ inputs.version }}"
+          version: ${{ inputs.version }}+${{ steps.versions.outputs.minecraft_version }}
+          version-type: release
+          loaders: fabric
+          game-versions: ${{ steps.versions.outputs.minecraft_version }}
+          java: ${{ steps.versions.outputs.minecraft_version == '26.2' && '25' || '21' }}
+          files: |
+            build/libs/!(*-@(dev|sources|javadoc)).jar
+
+      - name: Publish to CurseForge
+        uses: Kir-Antipov/mc-publish@v3.3
+        if: ${{ secrets.CURSEFORGE_TOKEN != '' }}
+        with:
+          curseforge-id: ${{ secrets.CURSEFORGE_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: v${{ inputs.version }}+mc${{ steps.versions.outputs.minecraft_version }}
+          name: "GuildInviteFix ${{ inputs.version }}"
+          version: ${{ inputs.version }}+${{ steps.versions.outputs.minecraft_version }}
+          version-type: release
+          loaders: fabric
+          game-versions: ${{ steps.versions.outputs.minecraft_version }}
+          java: ${{ steps.versions.outputs.minecraft_version == '26.2' && '25' || '21' }}
+          files: |
+            build/libs/!(*-@(dev|sources|javadoc)).jar
