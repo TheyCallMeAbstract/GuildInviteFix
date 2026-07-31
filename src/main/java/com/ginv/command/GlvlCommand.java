@@ -4,7 +4,7 @@ import com.ginv.utils.SkyBlockDetector;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.Minecraft;
@@ -50,8 +50,8 @@ public class GlvlCommand {
     public static void register() {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
                 dispatcher.register(
-                        ClientCommandManager.literal("glvl")
-                                .then(ClientCommandManager.argument("level", IntegerArgumentType.integer(0))
+                        ClientCommands.literal("glvl")
+                                .then(ClientCommands.argument("level", IntegerArgumentType.integer(0))
                                         .executes(GlvlCommand::execute))
                 )
         );

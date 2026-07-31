@@ -4,7 +4,7 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.Minecraft;
@@ -77,8 +77,8 @@ public class GinvCommand {
     public static void register() {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
                 dispatcher.register(
-                        ClientCommandManager.literal("ginv")
-                                .then(ClientCommandManager.argument("names", StringArgumentType.greedyString())
+                        ClientCommands.literal("ginv")
+                                .then(ClientCommands.argument("names", StringArgumentType.greedyString())
                                         .suggests(SUGGEST_PLAYER_NAMES)
                                         .executes(GinvCommand::executeWithArgs))
                                 .executes(GinvCommand::executeWithoutArgs)
