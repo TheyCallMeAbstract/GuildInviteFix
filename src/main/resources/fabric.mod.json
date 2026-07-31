@@ -2,8 +2,8 @@
 	"schemaVersion": 1,
 	"id": "guildinvitefix",
 	"version": "${version}",
-	"name": "guildinvitefix",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"name": "GuildInviteFix",
+	"description": "A client-side Fabric mod that batch-sends guild invites to multiple players at once.",
 	"authors": [
 		"Me!"
 	],
@@ -16,12 +16,12 @@
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"com.ginv.Guildinvitefix"
+			"com.ginv.GuildInviteFix"
+		],
+		"client": [
+			"com.ginv.client.GuildInviteFixClient"
 		]
 	},
-	"mixins": [
-		"guildinvitefix.mixins.json"
-	],
 	"depends": {
 		"fabricloader": ">=0.19.3",
 		"minecraft": "~26.1.2",

@@ -1,9 +1,42 @@
-# guildinvitefix
+# GuildInviteFix
 
-## Setup
+A client-side Fabric mod that batch-sends guild invites to multiple players at once.
 
-For setup instructions, please see the [Fabric Documentation page](https://docs.fabricmc.net/develop/getting-started/creating-a-project#setting-up) related to the IDE that you are using.
+## Requirements
+
+- Minecraft **26.1.2**
+- Fabric Loader **≥ 0.19.3**
+- **Fabric API** (required)
+
+## Usage
+
+```
+/ginv [player1] [player2] [player3] ...
+```
+
+Invite specific players by name. Supports tab completion from the tab list.
+
+```
+/glvl <level>
+```
+
+Invite all players in the tab list with a guild level **≥** the given threshold.
+Requires being in a SkyBlock instance. Players without a level (NPCs) are skipped.
+
+```
+/gfreeze
+```
+
+Toggle freeze on the invite queue. When frozen, no invites are sent but new targets are still queued.
+Run again to resume sending.
+
+## Installation
+
+1. Install Fabric Loader for Minecraft 26.1.2.
+2. Download the latest release JAR from [Releases](https://github.com/TheyCallMeAbstract/GuildInviteFix/releases).
+3. Place the JAR in your `.minecraft/mods/` folder.
+4. Make sure **Fabric API** is also installed in the same folder.
 
 ## License
 
-This template is available under the CC0 license. Feel free to learn from it and incorporate it in your own projects.
+This project is available under the CC0 1.0 license. See [LICENSE](LICENSE) for details.
