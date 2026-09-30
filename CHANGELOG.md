@@ -4,9 +4,9 @@
 
 ### Added
 - LDLib2 integration (Fabric port `ldlib2-fabric` from the
-  TheyCallMeAbstract/ldlib2-Architectury fork) via GitHub Packages Maven
+  TheyCallMeAbstract/ldlib2-Architectury fork), resolved tokenless from the
+  fork's public GitHub release assets (no credentials or CI secrets required)
 - Required companion dependencies: Architectury API ≥ 20.0.12 and YACL ≥ 3.9.1
-- CI package-read credential wiring (`LDLIB2_PACKAGES_READ` secret)
 - In-game menu (`/gmenu [popup|screen]`, LDLib2 `ModularUI`) with three
   sections: Settings (min/max invite delay, whitelist-only toggle), Lists
   (whitelist/blacklist management) and Monitor (live queue status and

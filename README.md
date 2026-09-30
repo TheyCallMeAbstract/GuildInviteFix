@@ -62,38 +62,27 @@ apply to `/ginv` and `/glvl` alike.
 
 Requirements: **JDK 25**.
 
-The `ldlib2-fabric` artifact is resolved from GitHub Packages, which requires a
-token with `read:packages`, even for public packages. Add your credentials to
-`~/.gradle/gradle.properties`:
-
-```properties
-gpr.user=<your GitHub username>
-gpr.key=<PAT with read:packages scope>
-```
-
-CI reads the same credentials from the `LDLIB2_PACKAGES_READ` repository secret.
-
-Then:
+No tokens, accounts or CI secrets are needed: `ldlib2-fabric` is downloaded from
+the fork's **public GitHub release assets**, and `mavenLocal()` is checked
+first.
 
 ```bash
 ./gradlew build
 ```
 
-### Credential-free alternative (mavenLocal escape hatch)
+### Building against a local fork build
 
 1. Clone the fork: `git clone -b 26.1 https://github.com/TheyCallMeAbstract/ldlib2-Architectury.git`
 2. Build and publish it locally: `cd ldlib2-Architectury && ./gradlew :fabric:publishToMavenLocal` (JDK 25)
-3. Our build checks `mavenLocal()` before GitHub Packages, so no token is needed.
+3. Our build checks `mavenLocal()` first, so your local build of the fork wins.
 
 ## Troubleshooting
 
-- **`Could not resolve com.lowdragmc.lowdraglib2:ldlib2-fabric` (401/404)** —
-  GitHub Packages auth is missing or the token is expired. 404 on a public
-  package almost always means "not authenticated". Create a classic PAT with
-  the `read:packages` scope (GitHub → Settings → Developer settings →
-  Personal access tokens → Tokens (classic) → Generate new token) and set
-  `gpr.user` / `gpr.key` as shown above. In CI, update the
-  `LDLIB2_PACKAGES_READ` secret.
+- **`Could not find com.lowdragmc.lowdraglib2:ldlib2-fabric:<version>`** —
+  no GitHub release exists for the version pinned in `gradle.properties`
+  (`ldlib2_version`), and the artifact is not in `mavenLocal()`. Publish the
+  fork release for that version, or build the fork locally
+  (`:fabric:publishToMavenLocal`) as described above.
 
 ## License
 

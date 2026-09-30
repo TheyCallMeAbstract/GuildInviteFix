@@ -10,22 +10,17 @@ repositories {
 	// `./gradlew :fabric:publishToMavenLocal` (see README -> Building).
 	mavenLocal()
 
-	// LDLib2 Fabric port, published to GitHub Packages.
-	// Requires a token with read:packages (see README -> Troubleshooting).
-	// Credentials: gradle properties gpr.user / gpr.key (e.g. in
-	// ~/.gradle/gradle.properties), falling back to GITHUB_ACTOR / GITHUB_TOKEN env vars.
-	def gprUser = findProperty('gpr.user') ?: System.getenv('GITHUB_ACTOR') ?: ''
-	def gprKey = findProperty('gpr.key') ?: System.getenv('GITHUB_TOKEN') ?: ''
-	if (!gprUser || !gprKey) {
-		logger.warn('[guildinvitefix] GitHub Packages credentials not set (gpr.user/gpr.key or GITHUB_ACTOR/GITHUB_TOKEN). ' +
-				'Resolving ldlib2-fabric will fail unless it is present in mavenLocal().')
-	}
-	maven {
-		name = 'GitHubPackages'
-		url = 'https://maven.pkg.github.com/TheyCallMeAbstract/ldlib2-Architectury'
-		credentials {
-			username = gprUser
-			password = gprKey
+	// LDLib2 Fabric port, fetched from the fork's public GitHub release assets.
+	// Public release downloads need no credentials — no tokens, gradle
+	// properties, env vars or CI secrets involved.
+	ivy {
+		name = 'LDLib2 GitHub Releases'
+		url = 'https://github.com/TheyCallMeAbstract/ldlib2-Architectury'
+		patternLayout {
+			artifact('releases/download/v[revision]/[artifact]-[revision].[ext]')
+		}
+		metadataSources {
+			artifact()
 		}
 	}
 

@@ -23,12 +23,6 @@ jobs:
         run: chmod +x ./gradlew
       - name: build
         run: ./gradlew build
-        env:
-          # Reads the ldlib2-Architectury package from GitHub Packages.
-          # Requires a PAT with read:packages stored as LDLIB2_PACKAGES_READ
-          # (a workflow's default GITHUB_TOKEN cannot read sibling-repo packages).
-          GITHUB_ACTOR: ${{ github.repository_owner }}
-          GITHUB_TOKEN: ${{ secrets.LDLIB2_PACKAGES_READ }}
       - name: capture build artifacts
         uses: actions/upload-artifact@v7
         with:
