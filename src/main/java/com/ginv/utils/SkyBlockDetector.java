@@ -1,5 +1,6 @@
 package com.ginv.utils;
 
+import com.ginv.testing.GuildTestGateway;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.scores.DisplaySlot;
@@ -26,6 +27,11 @@ public class SkyBlockDetector {
      * Returns false if not connected, not on Hypixel, or not in SkyBlock.
      */
     public static boolean isSkyBlock() {
+        // Test gateway: the mocked verdict fully replaces detection while
+        // installed (dev environment + singleplayer only).
+        if (GuildTestGateway.isActive()) {
+            return GuildTestGateway.isSkyBlock();
+        }
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) {

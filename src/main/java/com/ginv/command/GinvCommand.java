@@ -1,6 +1,7 @@
 package com.ginv.command;
 
 import com.ginv.data.GinvDataStore;
+import com.ginv.utils.GuildDirectory;
 import com.ginv.utils.GuildLevels;
 import com.ginv.utils.SkyBlockDetector;
 import com.mojang.brigadier.Command;
@@ -12,7 +13,6 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
-import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
 
 import java.util.*;
@@ -179,14 +179,8 @@ public class GinvCommand {
         int skippedNoLevel = 0;
         int skippedLowLevel = 0;
 
-        for (PlayerInfo info : connection.getOnlinePlayers()) {
-            String username = info.getProfile().name();
-            if (username == null || username.startsWith("!")) continue;
-
-            var team = info.getTeam();
-            if (team == null || team.getPlayerPrefix() == null) continue;
-
-            GuildLevels.LevelInfo level = GuildLevels.extract(info);
+        for (GuildDirectory.Entry entry : GuildDirectory.online()) {
+            GuildLevels.LevelInfo level = entry.level();
             if (level == null) {
                 skippedNoLevel++;
                 continue;
@@ -195,7 +189,7 @@ public class GinvCommand {
                 skippedLowLevel++;
                 continue;
             }
-            targets.add(username);
+            targets.add(entry.name());
         }
 
         if (targets.isEmpty()) {
@@ -220,9 +214,7 @@ public class GinvCommand {
             if (frozen) return; // will be resumed by toggleFreeze()
             String name = pendingInvites.poll();
             if (name != null && GinvDataStore.isAllowed(name)) {
-                ClientPacketListener connection = Minecraft.getInstance().getConnection();
-                if (connection != null) {
-                    connection.sendCommand("guild invite " + name);
+                if (InviteRoute.send(name)) {
                     GinvDataStore.recordInvite(name);
                 }
             }

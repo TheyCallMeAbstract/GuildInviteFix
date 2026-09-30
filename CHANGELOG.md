@@ -55,6 +55,26 @@
 - Shared command API layer: `GuildLevels` (level + prefix-color extraction,
   tab range) and `GinvCommand.queueByLevel`/`parseTargets` — chat commands
   and the UI render the same results; `/glvl` behavior unchanged
+- **UI test suite** — six LDLib2 uitest scenarios (`group:guildinvitefix`):
+  menu-open regression (deferred `/gmenu` path + element-tree/bounds
+  assertions), tab structure with per-tab screenshots, control-flow (hero
+  STOP/RESUME, queue-by-name, scheduler → recorded sends) and level queue
+  (fixture roster, skip counts, exact send order) over a **singleplayer-only
+  mock invite route** (`GuildTestGateway`, throws outside dev + singleplayer),
+  scale presets with saved-tab restore, and pop-out stability (12-tick
+  instance-identity check) + re-dock through the window's real input path —
+  run with `./gradlew runClient -PldTest=mod:guildinvitefix`, report +
+  screenshots in `build/reports/lduitest/`
+- Headless JUnit tests (guild-prefix parsing, target parsing,
+  `LevelQueueResult` contract) wired into `./gradlew build` via
+  fabric-loader-junit
+- Stable element ids/classes across the menu (`ginv_tab_*`, `ginv_pane_*`,
+  `ginv_panel`, `ginv_banner`, `ginv_hero`, name/level inputs, queue/clear
+  buttons, `ginv_target_row`, `ginv_scale_*`, title-bar chrome buttons) so
+  the uitest scenarios — and users' automation — can target widgets reliably
+- Pop-out open dimensions are clamped to the window minimum (200×150) and
+  the "Pop-out unavailable" feedback now includes the computed size, so a
+  refused open is localizable from the failure screenshot
 
 ### Changed
 - Menu tabs reordered to **Control | Lists | Monitor | Settings**, with every

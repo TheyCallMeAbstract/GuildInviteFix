@@ -93,6 +93,38 @@ first.
 2. Build and publish it locally: `cd ldlib2-Architectury && ./gradlew :fabric:publishToMavenLocal` (JDK 25)
 3. Our build checks `mavenLocal()` first, so your local build of the fork wins.
 
+## Testing
+
+Two layers:
+
+- **JUnit (headless, runs inside `./gradlew build`)** — pure logic:
+  guild-prefix parsing (`GuildLevels.parsePrefix`), target-string parsing
+  (`GinvCommand.parseTargets`), and the `LevelQueueResult` contract. Run
+  alone with `./gradlew test`.
+- **GUI suite (LDLib2 uitest scenarios, development builds)** — six scenarios
+  driving a real client: menu-open regression, tab structure, control-flow
+  over the mock invite route, level queue with fixture rosters, scale
+  presets, and pop-out stability + re-dock.
+
+```bash
+# headless tests only
+./gradlew test
+
+# full GUI suite (launches a dev client, needs a display)
+./gradlew runClient -PldTest=mod:guildinvitefix
+```
+
+The report and screenshots land in `build/reports/lduitest/`. Optional
+flags: `-PldTestHeadless` (synthetic input, hidden window),
+`-PldTestGuiScale=<n>`, `-PldTestWindow=<WxH>`, `-PldTestKeepOpen`.
+Selection grammar: `all`, `<name>`, `a,b,c`, `group:guildinvitefix`,
+`tag:ui`, `mod:guildinvitefix`, `regex:<pattern>`.
+
+The GUI suite installs `GuildTestGateway` fixtures (fake roster, SkyBlock
+verdict, recorded sends instead of network commands). `install()` **throws**
+outside a development environment running a singleplayer world, so the mock
+invite route can never activate in production.
+
 ## Troubleshooting
 
 - **`Could not find com.lowdragmc.lowdraglib2:ldlib2-fabric:<version>`** —

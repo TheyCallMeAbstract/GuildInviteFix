@@ -62,4 +62,13 @@ public class GmenuCommand {
         pendingOpen = popup;
         return Command.SINGLE_SUCCESS;
     }
+
+    /**
+     * Arms the deferred open directly — the uitest scenarios use this to drive
+     * the real applier path (the same one {@code /gmenu} takes) without
+     * needing a chat screen in the way.
+     */
+    public static void requestOpen(boolean popup) {
+        pendingOpen = popup;
+    }
 }

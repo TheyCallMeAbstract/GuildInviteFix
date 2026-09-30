@@ -10,6 +10,9 @@ repositories {
 	// `./gradlew :fabric:publishToMavenLocal` (see README -> Building).
 	mavenLocal()
 
+	// JUnit (test source set only)
+	mavenCentral()
+
 	// LDLib2 Fabric port, fetched from the fork's public GitHub release assets.
 	// Public release downloads need no credentials — no tokens, gradle
 	// properties, env vars or CI secrets involved.
@@ -42,6 +45,53 @@ dependencies {
 	// Hard runtime dependencies declared by ldlib2's fabric.mod.json
 	implementation "dev.architectury:architectury-fabric:${project.architectury_api_version}"
 	implementation "dev.isxander:yet-another-config-lib:${project.yacl_version}"
+
+	// Headless JUnit for the pure logic (parse rules, queue-result contract).
+	// The GUI suite lives in the uitest scenarios instead — see README.
+	testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
+	testImplementation platform('org.junit:junit-bom:5.11.4')
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+	useJUnitPlatform()
+}
+
+// UITest harness wiring (LDLib2's scenario runner). Off unless -PldTest is
+// passed, so a normal `runClient` is untouched:
+//
+//   ./gradlew runClient -PldTest=mod:guildinvitefix
+//   ./gradlew runClient -PldTest=group:guildinvitefix -PldTestHeadless
+//   ./gradlew runClient -PldTest=mod:guildinvitefix -PldTestGuiScale=3
+//
+// Output (report.json + PNG screenshots) lands in build/reports/lduitest.
+loom {
+	runs {
+		client {
+			if (project.hasProperty('ldTest')) {
+				property 'ldlib2.uitest.run', project.property('ldTest').toString()
+				property 'ldlib2.uitest.out',
+						layout.buildDirectory.dir('reports/lduitest').get().asFile.absolutePath
+				property 'ldlib2.uitest.guiScale',
+						project.findProperty('ldTestGuiScale')?.toString() ?: '2'
+				// Above the 120s per-scenario timeout so the watchdog never
+				// kills a scenario mid-run during world creation.
+				property 'ldlib2.uitest.watchdogSec',
+						project.findProperty('ldTestWatchdog')?.toString() ?: '180'
+				if (project.hasProperty('ldTestWindow')) {
+					property 'ldlib2.uitest.window', project.property('ldTestWindow').toString()
+				}
+				if (project.hasProperty('ldTestHeadless')) {
+					property 'ldlib2.uitest.headless', 'true'
+				}
+				if (project.hasProperty('ldTestKeepOpen')) {
+					property 'ldlib2.uitest.keepOpen', 'true'
+				}
+			}
+		}
+	}
 }
 
 processResources {

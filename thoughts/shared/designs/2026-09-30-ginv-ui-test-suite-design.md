@@ -35,19 +35,21 @@ invitation routes (fake players with guild levels, recorded invites).
 
 ## Regression findings (fixed as part of this work)
 
-1. **Windowed rebuild storm** — `GinvRoot.lastGuiScale` defaults to `1`;
-   `screenTick` compares it to the real MC GUI scale on the first tick of a
-   popped-out window and calls `rebuildActiveWindow()`, whose fresh root also
-   starts at `1`. When MC's GUI scale ≠ 1 the window is destroyed and recreated
-   **every tick, forever**. Side effects: unusable/flickering window, and
-   `/gmenu` hits `focusExisting()` on the storm window and never opens the
-   screen — the reported "popup menu is unavailable". Fix: initialize
-   `root.lastGuiScale = mcGuiScale()` during `buildLayout`.
-2. **Pop-out open size below window minimum** — open dims became
+1. **Windowed rebuild storm — RETRACTED during implementation.** The original
+   claim was that `GinvRoot.lastGuiScale` defaults to `1`, so `screenTick`
+   would compare `1` against MC's GUI scale on the first tick of a popped-out
+   window and call `rebuildActiveWindow()` forever. Code reading disproved it:
+   `buildLayout` already assigns `root.lastGuiScale = windowed ? mcGuiScale()
+   : 1` at construction, so the first-tick comparison matches and no storm
+   occurs. No code change was made for this finding; it stays recorded here
+   because scenario 6's 12-tick instance-identity check keeps guarding
+   against such a storm reappearing.
+2. **Pop-out open size below window minimum (fix applied)** — open dims became
    `420×300 × uiScale / contentScale`, which on HiDPI or low scale can fall
    under `ModularUIWindow.MIN_WIDTH/MIN_HEIGHT` (200×150) and fail the open
    path (literal feedback: "Pop-out unavailable"). Fix: clamp open dims to the
-   minimums.
+   minimums, and include the computed dims in the failure feedback so a
+   scenario failure screenshot localizes a size refusal.
 
 ## Approach
 
@@ -187,6 +189,12 @@ gateway's recorded sends. JUnit calls the domain functions directly.
 
 ## Open Questions
 
-None blocking. Assumption: the reported regression is the rebuild storm /
-`focusExisting` chain; scenarios 1 and 6 prove or refute it on first run and
-the two fixes above address both candidate root causes regardless.
+The runtime root cause of the reported "popup menu is unavailable" remains
+unconfirmed — static analysis retracted the storm theory and narrowed the
+candidates to (a) pop-out open dims below the window minimum (now clamped),
+(b) `focusExisting()` on a stale tracked window (scenarios now close stale
+windows first and assert instance identity), and (c) an exception in the
+screen constructor (would surface as scenario 1's `awaitScreen` timeout).
+Scenarios 1 and 6 localize whichever it is on first run: a failure
+screenshot plus the dims in the pop-out feedback label distinguish the
+paths.

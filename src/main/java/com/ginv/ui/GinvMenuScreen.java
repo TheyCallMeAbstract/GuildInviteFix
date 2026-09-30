@@ -3,6 +3,7 @@ package com.ginv.ui;
 import com.ginv.command.GinvCommand;
 import com.ginv.command.LevelQueueResult;
 import com.ginv.data.GinvDataStore;
+import com.ginv.utils.GuildDirectory;
 import com.ginv.utils.GuildLevels;
 import com.ginv.utils.SkyBlockDetector;
 import com.lowdragmc.lowdraglib2.client.window.OsWindow;
@@ -28,18 +29,18 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.TabView;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Toggle;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.ToggleGroupElement;
+import com.lowdragmc.lowdraglib2.gui.ui.window.ModularUIWindow;
 import dev.vfyjxf.taffy.style.AlignContent;
 import dev.vfyjxf.taffy.style.AlignItems;
 import dev.vfyjxf.taffy.style.FlexDirection;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientPacketListener;
-import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -180,6 +181,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         // Created before the title bar so the pop-out button can capture it for
         // the "no second window available" feedback path.
         Label feedbackLabel = new Label();
+        feedbackLabel.setId("ginv_feedback");
         feedbackLabel.setText("");
         feedbackLabel.textStyle(style -> style.fontSize(u(9)).textColor(COLOR_SUCCESS));
 
@@ -264,6 +266,7 @@ public class GinvMenuScreen extends ModularUIScreen {
                                 ? Icons.MAGNET
                                 : Icons.MAGNET.copy().setColor(ColorPattern.GRAY.color)),
                         "Always on top", false);
+                pinButton.setId("ginv_pin");
                 pinButton.setOnClick(event -> {
                     GinvMenuWindow window = GinvMenuWindow.active();
                     if (window != null) {
@@ -277,6 +280,7 @@ public class GinvMenuScreen extends ModularUIScreen {
 
             // Re-dock: back into the exact screen mode the window came from.
             Button dockButton = chromeButton(Icons.LEFT, "Back into the game", false);
+            dockButton.setId("ginv_redock");
             dockButton.setOnClick(event -> {
                 GinvMenuWindow window = GinvMenuWindow.active();
                 if (window == null) return;
@@ -291,12 +295,14 @@ public class GinvMenuScreen extends ModularUIScreen {
                             ? Icons.WINDOW_RESTORE
                             : Icons.WINDOW_MAXIMIZE),
                     "Maximize", false);
+            maximizeButton.setId("ginv_maximize");
             maximizeButton.setOnClick(event -> {
                 GinvMenuWindow window = GinvMenuWindow.active();
                 if (window != null) window.toggleMaximized();
             });
 
             Button closeButton = chromeButton(Icons.WINDOW_CLOSE, "Close (Esc)", true);
+            closeButton.setId("ginv_win_close");
             closeButton.setOnClick(event -> {
                 GinvMenuWindow window = GinvMenuWindow.active();
                 if (window != null) window.onCloseRequested();
@@ -309,6 +315,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             root.closeButton = closeButton;
         } else {
             Button popOutButton = new Button();
+            popOutButton.setId("ginv_popout");
             popOutButton.setText("↗");
             popOutButton.layout(layout -> {
                 layout.width(u(16));
@@ -319,6 +326,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             popOutButton.setOnClick(event -> popOut(popup, feedbackLabel));
 
             Button closeButton = chromeButton(Icons.WINDOW_CLOSE, "Close (Esc)", true);
+            closeButton.setId("ginv_close");
             closeButton.setOnClick(event -> Minecraft.getInstance().setScreen(null));
 
             titleBar.addChildren(popOutButton, closeButton);
@@ -349,6 +357,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         // One shared strip for both contexts: live queue status on the left,
         // transient action feedback on the right.
         Label statusLabel = new Label();
+        statusLabel.setId("ginv_status");
         statusLabel.setText(statusText());
         statusLabel.textStyle(style -> style.fontSize(u(9)).textColor(COLOR_MUTED));
 
@@ -384,6 +393,12 @@ public class GinvMenuScreen extends ModularUIScreen {
 
     private static void addTab(TabView tabView, List<Tab> tabs, String name, UIElement content) {
         Tab tab = new Tab().setText(name);
+        String slug = name.toLowerCase(Locale.ROOT);
+        // Stable ids/classes so the uitest scenarios can target tabs and panes.
+        tab.setId("ginv_tab_" + slug);
+        tab.addClass("ginv_tab");
+        content.setId("ginv_pane_" + slug);
+        content.addClass("ginv_pane");
         tabs.add(tab);
         tabView.addTab(tab, content);
     }
@@ -416,6 +431,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         dot.getStyle().backgroundTexture(DynamicTexture.of(() ->
                 new ColorRectTexture(GinvCommand.isFrozen() ? COLOR_DANGER : COLOR_SUCCESS)));
         Label bannerLabel = new Label();
+        bannerLabel.setId("ginv_banner");
         bannerLabel.textStyle(style -> style.fontSize(u(10)).textShadow(true));
         bannerLabel.layout(layout -> {
             layout.flexGrow(1);
@@ -432,6 +448,7 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         // Hero factory STOP: full-width, red STOP ⇄ green RESUME.
         Button hero = new Button();
+        hero.setId("ginv_hero");
         hero.layout(layout -> {
             layout.widthPercent(100);
             layout.height(u(24));
@@ -460,6 +477,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         content.addChild(sectionTitle("Queue"));
 
         TextField nameField = new TextField().setAnyString();
+        nameField.setId("ginv_name_input");
         nameField.textFieldStyle(style -> style
                 .placeholder(Component.literal("player1 player2 …"))
                 .fontSize(u(10)));
@@ -469,6 +487,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.height(u(16));
         });
         Button queueNames = new Button();
+        queueNames.setId("ginv_queue_names");
         queueNames.setText("Queue");
         queueNames.layout(layout -> layout.height(u(16)));
         queueNames.textStyle(style -> style.fontSize(u(10)));
@@ -487,6 +506,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         content.addChild(nameRow);
 
         TextField levelField = new TextField().setNumbersOnlyInt(0, 999);
+        levelField.setId("ginv_level_input");
         levelField.setText("0");
         levelField.textFieldStyle(style -> style.fontSize(u(10)));
         levelField.layout(layout -> {
@@ -494,6 +514,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.height(u(16));
         });
         Button queueLevel = new Button();
+        queueLevel.setId("ginv_queue_level");
         queueLevel.setText("Queue ≥");
         queueLevel.layout(layout -> layout.height(u(16)));
         queueLevel.textStyle(style -> style.fontSize(u(10)));
@@ -528,6 +549,7 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         root.lastCaption = levelCaption();
         Label rangeLabel = caption(root.lastCaption);
+        rangeLabel.setId("ginv_range");
         root.rangeLabel = rangeLabel;
         root.lastCanQueue = canQueueByLevel();
         queueLevel.setActive(root.lastCanQueue);
@@ -537,12 +559,14 @@ public class GinvMenuScreen extends ModularUIScreen {
         UIElement targetsHeaderRow = row(u(16));
         Label targetsHeader = sectionTitle(root.lastHeader = "Current targets ("
                 + GinvCommand.getGinvTargets().size() + ")");
+        targetsHeader.setId("ginv_targets_header");
         targetsHeader.layout(layout -> {
             layout.flexGrow(1);
             layout.minWidth(0);
         });
         root.targetsHeader = targetsHeader;
         Button clearButton = new Button();
+        clearButton.setId("ginv_clear");
         clearButton.setText("Clear");
         clearButton.layout(layout -> layout.height(u(16)));
         clearButton.textStyle(style -> style.fontSize(u(10)));
@@ -689,6 +713,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         scaleGroup.layout(layout -> layout.height(u(14)));
         for (double preset : SCALE_PRESETS) {
             Toggle toggle = new Toggle();
+            toggle.setId("ginv_scale_" + Math.round(preset * 100));
             toggle.setText(scalePresetLabel(preset));
             toggle.layout(layout -> layout.height(u(14)));
             toggle.toggleLabel(label -> label.textStyle(style -> style.fontSize(u(10))));
@@ -919,14 +944,8 @@ public class GinvMenuScreen extends ModularUIScreen {
     private static List<String> collectNames() {
         TreeSet<String> names = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         names.addAll(GinvDataStore.trackedNames());
-        ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection != null) {
-            for (PlayerInfo info : connection.getOnlinePlayers()) {
-                String name = info.getProfile().name();
-                if (name != null && !name.startsWith("!")) {
-                    names.add(name);
-                }
-            }
+        for (GuildDirectory.Entry entry : GuildDirectory.online()) {
+            names.add(entry.name());
         }
         return new ArrayList<>(names);
     }
@@ -934,14 +953,8 @@ public class GinvMenuScreen extends ModularUIScreen {
     /** Level lookup for the current tab list, keyed by player name. */
     private static Map<String, GuildLevels.LevelInfo> collectLevels() {
         Map<String, GuildLevels.LevelInfo> levels = new HashMap<>();
-        ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection != null) {
-            for (PlayerInfo info : connection.getOnlinePlayers()) {
-                String name = info.getProfile().name();
-                if (name == null || name.startsWith("!")) continue;
-                GuildLevels.LevelInfo level = GuildLevels.extract(info);
-                if (level != null) levels.put(name, level);
-            }
+        for (GuildDirectory.Entry entry : GuildDirectory.online()) {
+            if (entry.level() != null) levels.put(entry.name(), entry.level());
         }
         return levels;
     }
@@ -1022,14 +1035,10 @@ public class GinvMenuScreen extends ModularUIScreen {
      * rebuilds badges even when nobody joins or leaves.
      */
     private static List<String> onlineSnapshot() {
-        ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection == null) return List.of();
         List<String> names = new ArrayList<>();
-        for (PlayerInfo info : connection.getOnlinePlayers()) {
-            String name = info.getProfile().name();
-            if (name == null || name.startsWith("!")) continue;
-            GuildLevels.LevelInfo level = GuildLevels.extract(info);
-            names.add(name + ":" + (level == null ? "-" : level.value()));
+        for (GuildDirectory.Entry entry : GuildDirectory.online()) {
+            GuildLevels.LevelInfo level = entry.level();
+            names.add(entry.name() + ":" + (level == null ? "-" : level.value()));
         }
         names.sort(String.CASE_INSENSITIVE_ORDER);
         return names;
@@ -1135,13 +1144,17 @@ public class GinvMenuScreen extends ModularUIScreen {
         old.close();
     }
 
-    /** Pop-out size in physical pixels: authored base × uiScale / contentScale. */
+    /** Pop-out size in physical pixels: authored base × uiScale / contentScale.
+     *  Clamped to the platform minimum so a small scale / high content scale can
+     *  never hand the window a size it refuses (the "pop-out unavailable" path). */
     private static int openWidth() {
-        return (int) Math.round(BASE_WINDOW_WIDTH * GinvDataStore.uiScale() / contentScale());
+        return Math.max(ModularUIWindow.MIN_WIDTH,
+                (int) Math.round(BASE_WINDOW_WIDTH * GinvDataStore.uiScale() / contentScale()));
     }
 
     private static int openHeight() {
-        return (int) Math.round(BASE_WINDOW_HEIGHT * GinvDataStore.uiScale() / contentScale());
+        return Math.max(ModularUIWindow.MIN_HEIGHT,
+                (int) Math.round(BASE_WINDOW_HEIGHT * GinvDataStore.uiScale() / contentScale()));
     }
 
     // ------------------------------------------------------------- pop out
@@ -1171,7 +1184,10 @@ public class GinvMenuScreen extends ModularUIScreen {
             }
             mc.setScreen(null);
         } else {
-            feedback(feedbackLabel, "Pop-out unavailable — staying in-game.", COLOR_DANGER);
+            // Include the computed dims — if the platform refused them the
+            // numbers localize the regression in the uitest screenshot.
+            feedback(feedbackLabel, "Pop-out unavailable (" + openWidth() + "×" + openHeight()
+                    + ") — staying in-game.", COLOR_DANGER);
         }
     }
 

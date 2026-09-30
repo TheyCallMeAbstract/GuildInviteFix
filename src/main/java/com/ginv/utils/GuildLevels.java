@@ -1,7 +1,5 @@
 package com.ginv.utils;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.scores.PlayerTeam;
@@ -58,7 +56,20 @@ public final class GuildLevels {
         if (team == null) return null;
         Component prefix = team.getPlayerPrefix();
         if (prefix == null) return null;
-        String raw = prefix.getString();
+        return parsePrefix(prefix.getString());
+    }
+
+    /**
+     * Parses a raw team-prefix string — the pure half of {@link #extract},
+     * split out so the parsing rules are testable without a client.
+     *
+     * @param raw the prefix as the server rendered it, formatting codes intact
+     * @return the level with its render color, or {@code null} when the prefix
+     *         carries no {@code [number]}
+     */
+    @Nullable
+    public static LevelInfo parsePrefix(@Nullable String raw) {
+        if (raw == null || raw.isEmpty()) return null;
 
         Matcher colored = COLORED_LEVEL.matcher(raw);
         if (colored.find()) {
@@ -74,21 +85,17 @@ public final class GuildLevels {
     }
 
     /**
-     * The min/max guild level across the online tab list (NPCs skipped).
+     * The min/max guild level across the current directory (NPCs skipped).
      *
-     * @return the range, or {@code null} when not connected or nobody has a level
+     * @return the range, or {@code null} when nobody has a level
      */
     @Nullable
     public static LevelRange tabRange() {
-        ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection == null) return null;
         int min = Integer.MAX_VALUE;
         int max = Integer.MIN_VALUE;
         boolean any = false;
-        for (PlayerInfo info : connection.getOnlinePlayers()) {
-            String name = info.getProfile().name();
-            if (name == null || name.startsWith("!")) continue;
-            LevelInfo level = extract(info);
+        for (GuildDirectory.Entry entry : GuildDirectory.online()) {
+            LevelInfo level = entry.level();
             if (level == null) continue;
             any = true;
             min = Math.min(min, level.value());
