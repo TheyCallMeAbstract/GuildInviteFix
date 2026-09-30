@@ -46,6 +46,10 @@ Open the in-game menu (LDLib2 UI):
 - **Monitor** — live queue status plus per-player invite counts and last-invite
   times (persisted across restarts)
 
+The title bar's **↗** button pops the menu out into its own draggable, resizable
+OS window (LDLib2 `ModularUIWindow`) so it stays visible outside the Minecraft
+window; the in-game screen closes when the window opens.
+
 `popup` (default) renders over a transparent background and closes on an outside
 click; `screen` renders with a dimmed backdrop. Blacklisted players are never
 invited; whitelist-only mode invites only whitelisted players. Invite delays

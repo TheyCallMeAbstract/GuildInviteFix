@@ -17,6 +17,10 @@
 - The invite queue now skips blacklisted players always, and skips everyone but
   whitelisted players when whitelist-only mode is on
 - `/gmenu` command to open the menu
+- Pop-out mode for the menu: the **↗** title-bar button lifts it into its own
+  draggable/resizable OS window (LDLib2 `ModularUIWindow`) and closes the
+  in-game screen; falls back with an in-menu notice if a second window cannot
+  open
 
 ### Changed
 - Fabric Loader minimum bumped to 0.19.5 (required by LDLib2)

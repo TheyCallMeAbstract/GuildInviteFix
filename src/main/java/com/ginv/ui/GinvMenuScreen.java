@@ -16,6 +16,7 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.Switch;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Tab;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.TabView;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
+import com.lowdragmc.lowdraglib2.gui.ui.window.ModularUIWindow;
 import dev.vfyjxf.taffy.style.AlignContent;
 import dev.vfyjxf.taffy.style.AlignItems;
 import dev.vfyjxf.taffy.style.FlexDirection;
@@ -34,6 +35,8 @@ import java.util.TreeSet;
  *
  * <p>Popup mode renders over a transparent screen background and closes on an
  * outside click; screen mode adds a dimmed backdrop and is modal (ESC only).
+ * The title bar's pop-out button rebuilds the menu inside an OS window
+ * ({@link ModularUIWindow}) for use outside the game window.
  * Row lists rebuild when {@link GinvDataStore#version()} or the tab list changes;
  * the status line refreshes every tick.
  */
@@ -48,54 +51,24 @@ public class GinvMenuScreen extends ModularUIScreen {
     private static final int COLOR_OK = 0x55FF55;
     private static final int COLOR_ERROR = 0xFF5555;
 
-    private final boolean popup;
-    private final UIElement panel;
-
-    private final Label statusLabel;
-    private final Label feedbackLabel;
-    private final TextField minDelayField;
-    private final TextField maxDelayField;
-    private final Switch whitelistSwitch;
-    private final ScrollerView listsScroll;
-    private final ScrollerView monitorScroll;
-
-    private int lastVersion;
-    private List<String> lastOnline = List.of();
-
     /** Everything the constructor needs, assembled statically before the screen exists. */
     private record Layout(
-            UIElement root,
+            GinvRoot root,
             UIElement panel,
-            Label statusLabel,
-            Label feedbackLabel,
-            TextField minDelayField,
-            TextField maxDelayField,
-            Switch whitelistSwitch,
-            ScrollerView listsScroll,
-            ScrollerView monitorScroll
+            UIElement titleBar,
+            Button closeButton
     ) {
     }
 
     public GinvMenuScreen(boolean popup) {
-        this(buildLayout(popup), popup);
+        this(buildLayout(popup, false), popup);
     }
 
     private GinvMenuScreen(Layout layout, boolean popup) {
         super(new ModularUI(UI.of(layout.root())), Component.literal("Guild Invite Fix"));
-        this.popup = popup;
-        this.panel = layout.panel();
-        this.statusLabel = layout.statusLabel();
-        this.feedbackLabel = layout.feedbackLabel();
-        this.minDelayField = layout.minDelayField();
-        this.maxDelayField = layout.maxDelayField();
-        this.whitelistSwitch = layout.whitelistSwitch();
-        this.listsScroll = layout.listsScroll();
-        this.monitorScroll = layout.monitorScroll();
-
-        this.lastVersion = GinvDataStore.version();
-        this.lastOnline = onlineSnapshot();
 
         if (popup) {
+            UIElement panel = layout.panel();
             layout.root().addEventListener(UIEvents.MOUSE_DOWN, event -> {
                 if (event.button != 0) return;
                 float left = panel.getPositionX();
@@ -111,8 +84,14 @@ public class GinvMenuScreen extends ModularUIScreen {
 
     // --------------------------------------------------------------- build
 
-    private static Layout buildLayout(boolean popup) {
-        UIElement root = new UIElement();
+    private static Layout buildLayout(boolean popup, boolean windowed) {
+        // Created before the title bar so the pop-out button can capture it for
+        // the "no second window available" feedback path.
+        Label feedbackLabel = new Label();
+        feedbackLabel.setText("");
+        feedbackLabel.textStyle(style -> style.textColor(COLOR_OK));
+
+        GinvRoot root = new GinvRoot();
         root.setId("ginv_root");
         root.layout(layout -> {
             layout.widthPercent(100);
@@ -152,12 +131,29 @@ public class GinvMenuScreen extends ModularUIScreen {
         titleLabel.setText("Guild Invite Fix");
         titleLabel.textStyle(style -> style.textColor(COLOR_TEXT));
         titleLabel.layout(layout -> layout.flexGrow(1));
+
         Button closeButton = new Button();
         closeButton.setText("X");
         closeButton.layout(layout -> layout.width(16));
         closeButton.getStyle().tooltips("Close (Esc)");
-        closeButton.setOnClick(event -> Minecraft.getInstance().setScreen(null));
-        titleBar.addChildren(titleLabel, closeButton);
+        if (windowed) {
+            // Rewired to window.close() by popOut() before the window opens —
+            // setScreen(null) must never fire from inside an OS window.
+            closeButton.setOnClick(event -> { });
+        } else {
+            closeButton.setOnClick(event -> Minecraft.getInstance().setScreen(null));
+        }
+
+        if (windowed) {
+            titleBar.addChildren(titleLabel, closeButton);
+        } else {
+            Button popOutButton = new Button();
+            popOutButton.setText("↗");
+            popOutButton.layout(layout -> layout.width(16));
+            popOutButton.getStyle().tooltips("Pop out into its own window");
+            popOutButton.setOnClick(event -> popOut(popup, feedbackLabel));
+            titleBar.addChildren(titleLabel, popOutButton, closeButton);
+        }
         panel.addChild(titleBar);
 
         // Tab view -------------------------------------------------------
@@ -169,10 +165,6 @@ public class GinvMenuScreen extends ModularUIScreen {
         panel.addChild(tabView);
 
         // --- Settings tab ---
-        Label feedbackLabel = new Label();
-        feedbackLabel.setText("");
-        feedbackLabel.textStyle(style -> style.textColor(COLOR_OK));
-
         TextField minDelayField = new TextField().setNumbersOnlyInt(50, 60_000);
         minDelayField.setText(String.valueOf(GinvDataStore.minDelayMs()));
         minDelayField.layout(layout -> layout.width(52));
@@ -305,8 +297,16 @@ public class GinvMenuScreen extends ModularUIScreen {
         monitorContent.addChildren(statusLabel, monitorScroll);
         tabView.addTab(new Tab().setText("Monitor"), monitorContent);
 
-        return new Layout(root, panel, statusLabel, feedbackLabel,
-                minDelayField, maxDelayField, whitelistSwitch, listsScroll, monitorScroll);
+        // Hand the live widgets to the refresh loop (GinvRoot.screenTick runs in
+        // both screen and windowed contexts) and snapshot the change tokens.
+        root.statusLabel = statusLabel;
+        root.whitelistSwitch = whitelistSwitch;
+        root.listsScroll = listsScroll;
+        root.monitorScroll = monitorScroll;
+        root.lastVersion = GinvDataStore.version();
+        root.lastOnline = onlineSnapshot();
+
+        return new Layout(root, panel, titleBar, closeButton);
     }
 
     private static UIElement tabColumn() {
@@ -499,27 +499,72 @@ public class GinvMenuScreen extends ModularUIScreen {
                 + " · whitelist-only " + (GinvDataStore.whitelistOnly() ? "ON" : "OFF");
     }
 
-    // ---------------------------------------------------------------- tick
+    // ------------------------------------------------------------- pop out
 
-    @Override
-    public void tick() {
-        super.tick();
+    /**
+     * Lifts a freshly built copy of the menu into its own OS window via LDLib2's
+     * {@link ModularUIWindow}, then closes the in-game screen.
+     *
+     * <p>A fresh copy (not the screen's live UI) because closing the screen would
+     * fire {@code onRemoved()} on a shared instance and dispose its style engine.
+     * If the platform refuses a second window we stay in-game and say so.
+     */
+    private static void popOut(boolean popup, Label feedbackLabel) {
+        Minecraft mc = Minecraft.getInstance();
+        Layout windowed = buildLayout(popup, true);
 
-        int version = GinvDataStore.version();
-        List<String> online = onlineSnapshot();
-        if (version != lastVersion || !online.equals(lastOnline)) {
-            lastVersion = version;
-            lastOnline = online;
-            fillListsScroll(listsScroll);
-            fillMonitorScroll(monitorScroll);
+        ModularUIWindow window = new ModularUIWindow(
+                new ModularUI(UI.of(windowed.root())), "Guild Invite Fix");
+        window.setDragArea(windowed.titleBar());
+        windowed.closeButton().setOnClick(event -> window.close());
+
+        if (window.open(Integer.MIN_VALUE, Integer.MIN_VALUE, 372, 288, false)) {
+            mc.setScreen(null);
+        } else {
+            feedbackLabel.setText("Pop-out unavailable — staying in-game.");
+            feedbackLabel.textStyle(style -> style.textColor(COLOR_ERROR));
         }
+    }
 
-        statusLabel.setText(statusText());
+    // ---------------------------------------------------------------- root
 
-        boolean whitelistOnly = GinvDataStore.whitelistOnly();
-        boolean switchOn = Boolean.TRUE.equals(whitelistSwitch.getValue());
-        if (whitelistOnly != switchOn) {
-            whitelistSwitch.setOn(whitelistOnly, false);
+    /**
+     * Menu root element carrying the refresh loop.
+     *
+     * <p>{@link #screenTick()} replaces the old {@code GinvMenuScreen.tick()}:
+     * in-screen, {@code ScreenMixin.ldlib2$tick} invokes it when the screen ticks;
+     * in an OS window, {@code ModularUIWindow} sets {@code tickWhileRending} so
+     * widget extraction drives it once per client tick. One implementation, both
+     * contexts — so no double refresh either.
+     */
+    private static final class GinvRoot extends UIElement {
+        Label statusLabel;
+        Switch whitelistSwitch;
+        ScrollerView listsScroll;
+        ScrollerView monitorScroll;
+        int lastVersion;
+        List<String> lastOnline = List.of();
+
+        @Override
+        public void screenTick() {
+            super.screenTick();
+
+            int version = GinvDataStore.version();
+            List<String> online = onlineSnapshot();
+            if (version != lastVersion || !online.equals(lastOnline)) {
+                lastVersion = version;
+                lastOnline = online;
+                fillListsScroll(listsScroll);
+                fillMonitorScroll(monitorScroll);
+            }
+
+            statusLabel.setText(statusText());
+
+            boolean whitelistOnly = GinvDataStore.whitelistOnly();
+            boolean switchOn = Boolean.TRUE.equals(whitelistSwitch.getValue());
+            if (whitelistOnly != switchOn) {
+                whitelistSwitch.setOn(whitelistOnly, false);
+            }
         }
     }
 }
