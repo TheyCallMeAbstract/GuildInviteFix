@@ -5,10 +5,48 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
+repositories {
+	// Escape hatch: build the ldlib2-Architectury fork locally and run
+	// `./gradlew :fabric:publishToMavenLocal` (see README -> Building).
+	mavenLocal()
+
+	// LDLib2 Fabric port, published to GitHub Packages.
+	// Requires a token with read:packages (see README -> Troubleshooting).
+	// Credentials: gradle properties gpr.user / gpr.key (e.g. in
+	// ~/.gradle/gradle.properties), falling back to GITHUB_ACTOR / GITHUB_TOKEN env vars.
+	def gprUser = findProperty('gpr.user') ?: System.getenv('GITHUB_ACTOR') ?: ''
+	def gprKey = findProperty('gpr.key') ?: System.getenv('GITHUB_TOKEN') ?: ''
+	if (!gprUser || !gprKey) {
+		logger.warn('[guildinvitefix] GitHub Packages credentials not set (gpr.user/gpr.key or GITHUB_ACTOR/GITHUB_TOKEN). ' +
+				'Resolving ldlib2-fabric will fail unless it is present in mavenLocal().')
+	}
+	maven {
+		name = 'GitHubPackages'
+		url = 'https://maven.pkg.github.com/TheyCallMeAbstract/ldlib2-Architectury'
+		credentials {
+			username = gprUser
+			password = gprKey
+		}
+	}
+
+	// Architectury API and YACL (hard runtime dependencies of LDLib2)
+	maven { url = 'https://maven.architectury.dev/' }
+	maven { url = 'https://maven.isxander.dev/releases' }
+}
+
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// LDLib2 UI framework (Fabric port by TheyCallMeAbstract)
+	// Note: this Loom generation (no-remap, unobfuscated MC) has no mod*
+	// configurations — plain `implementation` puts deps on the runClient
+	// classpath where Loom auto-detects fabric.mod.json jars as mods.
+	implementation "com.lowdragmc.lowdraglib2:ldlib2-fabric:${project.ldlib2_version}"
+	// Hard runtime dependencies declared by ldlib2's fabric.mod.json
+	implementation "dev.architectury:architectury-fabric:${project.architectury_api_version}"
+	implementation "dev.isxander:yet-another-config-lib:${project.yacl_version}"
 }
 
 processResources {

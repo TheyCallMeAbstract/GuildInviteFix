@@ -41,6 +41,11 @@ jobs:
 
       - name: Build
         run: ./gradlew build
+        env:
+          # Reads the ldlib2-Architectury package from GitHub Packages.
+          # Requires a PAT with read:packages stored as LDLIB2_PACKAGES_READ.
+          GITHUB_ACTOR: ${{ github.repository_owner }}
+          GITHUB_TOKEN: ${{ secrets.LDLIB2_PACKAGES_READ }}
 
       - name: Find release JAR
         id: find-jar

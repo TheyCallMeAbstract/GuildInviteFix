@@ -57,7 +57,7 @@ Repository wiring added to the mod's build:
 | `https://maven.architectury.dev/` | `dev.architectury:architectury-fabric:20.0.12` | none |
 | `https://maven.isxander.dev/releases` | `dev.isxander:yet-another-config-lib:3.9.1+26.1-fabric` | none |
 
-Dependency declarations (all mod-scoped so Loom puts them on the dev runtime classpath as loadable mods):
+Dependency declarations (plain `implementation` — this Loom generation, `net.fabricmc.fabric-loom` on unobfuscated MC 26.x, has no `mod*` configurations; Loom auto-detects `fabric.mod.json` jars on the runtime classpath, exactly as the fabric-example-mod template declares Fabric API):
 
 - `modImplementation` → `ldlib2-fabric`
 - `modImplementation` → `architectury-fabric`
@@ -74,7 +74,7 @@ All versions live in `gradle.properties` next to the existing Fabric properties.
 
 2. **`build.gradle`**
    - Add a `repositories` block containing the three mavens above; GitHub Packages entry reads credentials from Gradle properties with env-var fallback (never hardcode)
-   - Add the three `modImplementation` dependency declarations
+   - Add the three dependency declarations (plain `implementation`, per the no-remap Loom note above)
    - Emit a configuration-time warning (not an error) when GitHub Packages credentials are missing
 
 3. **`src/main/resources/fabric.mod.json`**
