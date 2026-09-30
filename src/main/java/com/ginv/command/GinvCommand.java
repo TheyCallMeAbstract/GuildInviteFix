@@ -1,5 +1,6 @@
 package com.ginv.command;
 
+import com.ginv.data.GinvDataStore;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -145,21 +146,48 @@ public class GinvCommand {
 
     /**
      * Processes the next invite in the queue.
-     * Chains itself with a random delay until the queue is empty or frozen.
+     * Chains itself with a random delay (from persisted settings) until the queue
+     * is empty or frozen. Names blocked by the whitelist/blacklist settings are
+     * skipped without sending, and every sent invite is recorded in the store.
      */
     private static void processNext() {
         if (pendingInvites.isEmpty()) return;
         scheduler.schedule(() -> {
             if (frozen) return; // will be resumed by toggleFreeze()
             String name = pendingInvites.poll();
-            if (name != null) {
+            if (name != null && GinvDataStore.isAllowed(name)) {
                 ClientPacketListener connection = Minecraft.getInstance().getConnection();
                 if (connection != null) {
                     connection.sendCommand("guild invite " + name);
+                    GinvDataStore.recordInvite(name);
                 }
             }
             processNext();
-        }, 220 + random.nextInt(501), TimeUnit.MILLISECONDS);
+        }, nextDelayMs(), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Delay for the next send: uniform random in [min, max] from persisted
+     * settings (defaults 220-720 ms, the mod's original behaviour).
+     */
+    private static long nextDelayMs() {
+        int min = GinvDataStore.minDelayMs();
+        int max = GinvDataStore.maxDelayMs();
+        if (max < min) {
+            int swap = min;
+            min = max;
+            max = swap;
+        }
+        return min + (max <= min ? 0 : random.nextInt(max - min + 1));
+    }
+
+    /**
+     * Drops a name from both the pending queue and the target set.
+     * Used by the menu's per-row remove button.
+     */
+    public static void removeFromQueue(String name) {
+        pendingInvites.removeIf(queued -> queued.equalsIgnoreCase(name));
+        ginvTargets.removeIf(target -> target.equalsIgnoreCase(name));
     }
 
     // --- Freeze control ---

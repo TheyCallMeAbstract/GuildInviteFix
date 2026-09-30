@@ -33,6 +33,24 @@ Requires being in a SkyBlock instance. Players without a level (NPCs) are skippe
 Toggle freeze on the invite queue. When frozen, no invites are sent but new targets are still queued.
 Run again to resume sending.
 
+```
+/gmenu [popup|screen]
+```
+
+Open the in-game menu (LDLib2 UI):
+
+- **Settings** — invite delay range (min/max ms) and whitelist-only mode
+- **Lists** — whitelist/blacklist management; each row shows the player's head,
+  name and three buttons: **W** (whitelist), **B** (blacklist), **X** (remove
+  record and unqueue). Add offline players by name.
+- **Monitor** — live queue status plus per-player invite counts and last-invite
+  times (persisted across restarts)
+
+`popup` (default) renders over a transparent background and closes on an outside
+click; `screen` renders with a dimmed backdrop. Blacklisted players are never
+invited; whitelist-only mode invites only whitelisted players. Invite delays
+apply to `/ginv` and `/glvl` alike.
+
 ## Installation
 
 1. Install Fabric Loader for Minecraft 26.1.2.
