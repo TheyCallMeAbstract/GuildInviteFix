@@ -38,13 +38,25 @@ public class GinvMenuWindow extends ModularUIWindow {
     @Nullable
     private static GinvMenuWindow tracked;
 
+    /** Which in-game mode this window was popped out of (popup vs screen). */
+    private final boolean popupOrigin;
+
     private long lastDragPressAt;
     private double lastDragX;
     private double lastDragY;
     private boolean swallowNextRelease;
 
-    public GinvMenuWindow(ModularUI modularUI, String title) {
+    public GinvMenuWindow(ModularUI modularUI, String title, boolean popupOrigin) {
         super(modularUI, title);
+        this.popupOrigin = popupOrigin;
+    }
+
+    /**
+     * The mode the window was popped out of, so the re-dock button can return
+     * the menu to exactly the screen it left (popup overlay or full screen).
+     */
+    public boolean popupOrigin() {
+        return popupOrigin;
     }
 
     // ----------------------------------------------------------- single instance

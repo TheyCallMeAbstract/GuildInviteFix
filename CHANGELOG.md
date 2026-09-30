@@ -33,8 +33,35 @@
   buttons now tint their background instead of recoloring their text
 - `/gmenu` focuses an already-open pop-out menu window instead of opening a
   second copy
+- **Control tab** (now the first tab): live state banner (RUNNING/STOPPED ·
+  pending), a full-width factory **STOP/RESUME INVITES** button, queue by
+  name(s), queue by guild level with skip-aware feedback (`Queued 7 · 2
+  no-level · 3 below`) and a live tab-range caption, plus the current-targets
+  readout (the bare `/ginv` feature) with per-row remove and **Clear** —
+  level queueing is disabled with an inline hint outside SkyBlock or without
+  a connection
+- Guild **level badges** on player rows in Lists, Monitor and the targets
+  list, colored from the server's prefix (§ code) with a muted `—` for
+  offline/unleveled players; the tab change token now includes levels so
+  badges refresh on level-ups; Lists rows gained a **⚡ queue-now** button
+- Independent **menu scale** in Settings: segmented 75/100/125/150/200%
+  control, persisted as `uiScale` in `settings.json`; the pop-out window opens
+  at `base × scale / contentScale` physical pixels and layout divides by the
+  game GUI scale, so it keeps one physical size and its proportions at any
+  Minecraft GUI-scale option (rebuilds on scale or GUI-scale changes, keeping
+  the window's position, size, pin and maximized state)
+- **↩ re-dock** button in the pop-out title bar: returns the menu to the
+  popup/screen mode it was popped out of
+- Shared command API layer: `GuildLevels` (level + prefix-color extraction,
+  tab range) and `GinvCommand.queueByLevel`/`parseTargets` — chat commands
+  and the UI render the same results; `/glvl` behavior unchanged
 
 ### Changed
+- Menu tabs reordered to **Control | Lists | Monitor | Settings**, with every
+  authored size routed through a single scale helper (`u()`) so both contexts
+  scale as one system
+- `/glvl` is now a thin adapter over the shared `queueByLevel` API (chat
+  output unchanged)
 - Fabric Loader minimum bumped to 0.19.5 (required by LDLib2)
 - Fabric API bumped to 0.155.3+26.1.2
 - Invite delay range (default 220–720 ms) is now configurable from the menu

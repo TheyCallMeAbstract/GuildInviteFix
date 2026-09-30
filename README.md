@@ -37,11 +37,18 @@ Run again to resume sending.
 /gmenu [popup|screen]
 ```
 
-Open the in-game menu (LDLib2 UI):
+Open the in-game menu (LDLib2 UI) with four tabs:
 
-- **Settings** — invite delay range (min/max ms) and whitelist-only mode
+- **Control** — state banner (RUNNING/STOPPED + pending), the big
+  **STOP/RESUME INVITES** toggle, queue by name(s), queue by guild level
+  (live tab-range caption; disabled with a hint outside SkyBlock), and the
+  current-target list with per-row remove and **Clear**
+- **Settings** — invite delay range (min/max ms), whitelist-only mode, and the
+  menu **scale** (75–200%, persisted; the pop-out window keeps its physical
+  size regardless of Minecraft's GUI-scale option)
 - **Lists** — whitelist/blacklist management; each row shows the player's head,
-  name and three buttons: **W** (whitelist), **B** (blacklist), **X** (remove
+  name, their guild level (colored like the server renders it), a **⚡** queue
+  button and three buttons: **W** (whitelist), **B** (blacklist), **X** (remove
   record and unqueue). Add offline players by name.
 - **Monitor** — live queue status plus per-player invite counts and last-invite
   times (persisted across restarts)
@@ -51,7 +58,8 @@ window (LDLib2 `ModularUIWindow`) so it stays visible outside the Minecraft
 window; the in-game screen closes when the window opens. The window behaves
 like a desktop app: drag to move, drag the edges to resize, double-click the
 title bar to maximize/restore, **Esc** to close (the first press leaves a
-focused text field), and — where the platform supports it — a pin for
+focused text field), a **↩ re-dock** button that puts the menu back into the
+screen mode it came from, and — where the platform supports it — a pin for
 always-on-top. Both the in-game menu and the window share a status bar with
 live queue status and action feedback.
 

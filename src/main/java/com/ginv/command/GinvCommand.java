@@ -1,6 +1,8 @@
 package com.ginv.command;
 
 import com.ginv.data.GinvDataStore;
+import com.ginv.utils.GuildLevels;
+import com.ginv.utils.SkyBlockDetector;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -10,6 +12,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
 
 import java.util.*;
@@ -95,10 +98,7 @@ public class GinvCommand {
     private static int executeWithArgs(CommandContext<FabricClientCommandSource> context) {
         String raw = StringArgumentType.getString(context, "names");
 
-        Set<String> parsed = Arrays.stream(raw.split("\\s+"))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> parsed = parseTargets(raw);
 
         if (parsed.isEmpty()) {
             context.getSource().sendFeedback(Component.literal(
@@ -135,6 +135,18 @@ public class GinvCommand {
     }
 
     /**
+     * Splits raw input (chat greedy string or the menu's name field) into a
+     * deduplicated, order-preserving name set. Shared by {@code /ginv} and the
+     * Control tab's queue-by-name button so both parse identically.
+     */
+    public static Set<String> parseTargets(String raw) {
+        if (raw == null || raw.isBlank()) return new LinkedHashSet<>();
+        return Arrays.stream(raw.trim().split("\\s+"))
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
      * Adds targets to the shared queue and starts processing.
      * Called by all commands that need to batch-invite.
      */
@@ -142,6 +154,58 @@ public class GinvCommand {
         ginvTargets.addAll(targets);
         pendingInvites.addAll(targets);
         processNext();
+    }
+
+    /**
+     * Queues invites for every tab-list player whose guild level is at or
+     * above {@code minLevel}. The domain half of {@code /glvl}: precondition
+     * checks, the tab scan and skip counts live here; chat and UI only render
+     * the result.
+     *
+     * <p>Skip semantics match the original command: {@code !}-prefixed NPCs
+     * and players without a team/prefix are skipped silently; a prefix
+     * without a number counts as {@code skippedNoLevel}.
+     */
+    public static LevelQueueResult queueByLevel(int minLevel) {
+        if (!SkyBlockDetector.isSkyBlock()) {
+            return LevelQueueResult.fail(LevelQueueResult.Error.NOT_SKYBLOCK);
+        }
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        if (connection == null) {
+            return LevelQueueResult.fail(LevelQueueResult.Error.NOT_CONNECTED);
+        }
+
+        List<String> targets = new ArrayList<>();
+        int skippedNoLevel = 0;
+        int skippedLowLevel = 0;
+
+        for (PlayerInfo info : connection.getOnlinePlayers()) {
+            String username = info.getProfile().name();
+            if (username == null || username.startsWith("!")) continue;
+
+            var team = info.getTeam();
+            if (team == null || team.getPlayerPrefix() == null) continue;
+
+            GuildLevels.LevelInfo level = GuildLevels.extract(info);
+            if (level == null) {
+                skippedNoLevel++;
+                continue;
+            }
+            if (level.value() < minLevel) {
+                skippedLowLevel++;
+                continue;
+            }
+            targets.add(username);
+        }
+
+        if (targets.isEmpty()) {
+            return new LevelQueueResult(LevelQueueResult.Error.NO_MATCHES, 0,
+                    skippedNoLevel, skippedLowLevel);
+        }
+
+        queueAndSchedule(targets);
+        return new LevelQueueResult(LevelQueueResult.Error.NONE, targets.size(),
+                skippedNoLevel, skippedLowLevel);
     }
 
     /**

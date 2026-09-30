@@ -82,6 +82,9 @@ public final class GinvDataStore {
     private static final int DEFAULT_MAX_DELAY_MS = 720;
     private static final int MIN_DELAY_BOUND = 50;
     private static final int MAX_DELAY_BOUND = 60_000;
+    private static final double DEFAULT_UI_SCALE = 1.0;
+    private static final double MIN_UI_SCALE = 0.5;
+    private static final double MAX_UI_SCALE = 3.0;
 
     private static boolean loaded;
     private static int version;
@@ -91,6 +94,7 @@ public final class GinvDataStore {
     private static int maxDelayMs = DEFAULT_MAX_DELAY_MS;
     private static boolean whitelistOnly;
     private static boolean alwaysOnTop;
+    private static double uiScale = DEFAULT_UI_SCALE;
 
     private GinvDataStore() {
     }
@@ -146,6 +150,7 @@ public final class GinvDataStore {
                         if (root.has("maxDelayMs")) maxDelayMs = clampDelay(root.get("maxDelayMs").getAsInt());
                         if (root.has("whitelistOnly")) whitelistOnly = root.get("whitelistOnly").getAsBoolean();
                         if (root.has("alwaysOnTop")) alwaysOnTop = root.get("alwaysOnTop").getAsBoolean();
+                        if (root.has("uiScale")) uiScale = clampScale(root.get("uiScale").getAsDouble());
                     }
                 }
             }
@@ -155,6 +160,7 @@ public final class GinvDataStore {
             maxDelayMs = DEFAULT_MAX_DELAY_MS;
             whitelistOnly = false;
             alwaysOnTop = false;
+            uiScale = DEFAULT_UI_SCALE;
         }
 
         if (minDelayMs > maxDelayMs) {
@@ -166,6 +172,11 @@ public final class GinvDataStore {
 
     private static int clampDelay(int value) {
         return Math.max(MIN_DELAY_BOUND, Math.min(MAX_DELAY_BOUND, value));
+    }
+
+    private static double clampScale(double value) {
+        if (!Double.isFinite(value)) return DEFAULT_UI_SCALE;
+        return Math.max(MIN_UI_SCALE, Math.min(MAX_UI_SCALE, value));
     }
 
     // --- saving ---
@@ -193,6 +204,7 @@ public final class GinvDataStore {
             root.addProperty("maxDelayMs", maxDelayMs);
             root.addProperty("whitelistOnly", whitelistOnly);
             root.addProperty("alwaysOnTop", alwaysOnTop);
+            root.addProperty("uiScale", uiScale);
             atomicWrite(settingsFile(), GSON.toJson(root));
         } catch (IOException e) {
             GuildInviteFix.LOGGER.error("[Ginv] Failed to save settings.json", e);
@@ -376,6 +388,27 @@ public final class GinvDataStore {
             ensureLoaded();
             if (alwaysOnTop != value) {
                 alwaysOnTop = value;
+                version++;
+                saveSettings();
+            }
+        }
+    }
+
+    /** The menu's independent scale factor (1.0 = authored size). */
+    public static double uiScale() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            return uiScale;
+        }
+    }
+
+    /** Persists the menu scale; clamped to {@code [0.5, 3.0]}, invalid → 1.0. */
+    public static void setUiScale(double value) {
+        synchronized (LOCK) {
+            ensureLoaded();
+            double clamped = clampScale(value);
+            if (clamped != uiScale) {
+                uiScale = clamped;
                 version++;
                 saveSettings();
             }
