@@ -1,6 +1,7 @@
 package com.ginv.command;
 
 import com.ginv.ui.GinvMenuScreen;
+import com.ginv.ui.GinvMenuWindow;
 import com.mojang.brigadier.Command;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -18,6 +19,8 @@ import net.minecraft.client.gui.screens.Screen;
  * command, which would clobber a screen opened immediately. The command arms
  * {@link #pendingOpen} instead, and the end-client-tick applier opens the menu
  * once chat is gone (the same trick ldlib2's own screen-test commands use).
+ * When the menu already lives in an OS window, the applier focuses that window
+ * rather than opening a second copy.
  */
 public class GmenuCommand {
 
@@ -45,6 +48,9 @@ public class GmenuCommand {
                 return; // wait until chat has closed
             }
             pendingOpen = null;
+            if (GinvMenuWindow.focusExisting()) {
+                return; // the menu already has a window — bring it forward
+            }
             if (current == null) {
                 minecraft.setScreen(new GinvMenuScreen(popup));
             }

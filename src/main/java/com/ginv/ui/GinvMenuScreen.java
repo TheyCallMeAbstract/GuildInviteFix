@@ -2,11 +2,18 @@ package com.ginv.ui;
 
 import com.ginv.command.GinvCommand;
 import com.ginv.data.GinvDataStore;
+import com.lowdragmc.lowdraglib2.client.window.OsWindow;
+import com.lowdragmc.lowdraglib2.gui.ColorPattern;
 import com.lowdragmc.lowdraglib2.gui.texture.ColorRectTexture;
+import com.lowdragmc.lowdraglib2.gui.texture.DynamicTexture;
+import com.lowdragmc.lowdraglib2.gui.texture.IGuiTexture;
+import com.lowdragmc.lowdraglib2.gui.texture.Icons;
 import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
 import com.lowdragmc.lowdraglib2.gui.ui.UI;
 import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
 import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
+import com.lowdragmc.lowdraglib2.gui.ui.style.Stylesheet;
+import com.lowdragmc.lowdraglib2.gui.ui.style.StylesheetManager;
 import com.lowdragmc.lowdraglib2.gui.ui.styletemplate.Sprites;
 import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
@@ -16,7 +23,6 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.Switch;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Tab;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.TabView;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
-import com.lowdragmc.lowdraglib2.gui.ui.window.ModularUIWindow;
 import dev.vfyjxf.taffy.style.AlignContent;
 import dev.vfyjxf.taffy.style.AlignItems;
 import dev.vfyjxf.taffy.style.FlexDirection;
@@ -36,27 +42,43 @@ import java.util.TreeSet;
  * <p>Popup mode renders over a transparent screen background and closes on an
  * outside click; screen mode adds a dimmed backdrop and is modal (ESC only).
  * The title bar's pop-out button rebuilds the menu inside an OS window
- * ({@link ModularUIWindow}) for use outside the game window.
- * Row lists rebuild when {@link GinvDataStore#version()} or the tab list changes;
- * the status line refreshes every tick.
+ * (LDLib2 {@code ModularUIWindow}) for use outside the game window, with a
+ * full program-window chrome: title bar, maximize/restore, always-on-top pin,
+ * edge resize and a status bar. Both contexts are themed with LDLib2's MODERN
+ * stylesheet. Row lists rebuild when {@link GinvDataStore#version()} or the
+ * tab list changes; the status line refreshes every tick.
  */
 public class GinvMenuScreen extends ModularUIScreen {
 
     private static final int COLOR_TEXT = 0xFFFFFF;
     private static final int COLOR_MUTED = 0xAAAAAA;
     private static final int COLOR_HINT = 0x999999;
-    private static final int COLOR_ACTIVE_WHITE = 0x55FF55;
-    private static final int COLOR_ACTIVE_BLACK = 0xFF5555;
+    /** Active-state background tints for the W/B list buttons (text stays white). */
+    private static final int TINT_ACTIVE_WHITE = 0xFF1B5E20;
+    private static final int TINT_ACTIVE_BLACK = 0xFF7F1D1D;
     private static final int COLOR_BUTTON_IDLE = 0xBBBBBB;
     private static final int COLOR_OK = 0x55FF55;
     private static final int COLOR_ERROR = 0xFF5555;
+    /** Chrome surfaces, sampled to sit with the MODERN theme's dark panels. */
+    private static final int CHROME_BG = 0xFF18181B;
+    private static final int WINDOW_BG = 0xFF1E1F22;
+    /** Windows convention: the close button's hover fill. */
+    private static final int CLOSE_HOVER = 0xFFE81123;
+    private static final int CLOSE_PRESSED = 0xFFB00D1F;
+
+    private static final IGuiTexture CHROME_IDLE = new ColorRectTexture(0x00000000);
+    private static final IGuiTexture CHROME_HOVER = new ColorRectTexture(0x22FFFFFF);
+    private static final IGuiTexture CHROME_PRESSED = new ColorRectTexture(0x33FFFFFF);
+
+    /** The LDLib2 theme both the screen and the pop-out window are styled with. */
+    private static Stylesheet modernSheet() {
+        return StylesheetManager.INSTANCE.getStylesheetSafe(StylesheetManager.MODERN);
+    }
 
     /** Everything the constructor needs, assembled statically before the screen exists. */
     private record Layout(
             GinvRoot root,
-            UIElement panel,
-            UIElement titleBar,
-            Button closeButton
+            UIElement panel
     ) {
     }
 
@@ -65,7 +87,7 @@ public class GinvMenuScreen extends ModularUIScreen {
     }
 
     private GinvMenuScreen(Layout layout, boolean popup) {
-        super(new ModularUI(UI.of(layout.root())), Component.literal("Guild Invite Fix"));
+        super(new ModularUI(UI.of(layout.root(), modernSheet())), Component.literal("Guild Invite Fix"));
 
         if (popup) {
             UIElement panel = layout.panel();
@@ -97,10 +119,15 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.widthPercent(100);
             layout.heightPercent(100);
             layout.flexDirection(FlexDirection.COLUMN);
-            layout.justifyContent(AlignContent.CENTER);
-            layout.alignItems(AlignItems.CENTER);
+            if (!windowed) {
+                layout.justifyContent(AlignContent.CENTER);
+                layout.alignItems(AlignItems.CENTER);
+            }
         });
-        if (!popup) {
+        if (windowed) {
+            // The OS window supplies the frame; the root fills it edge to edge.
+            root.getStyle().backgroundTexture(new ColorRectTexture(WINDOW_BG));
+        } else if (!popup) {
             root.getStyle().backgroundTexture(new ColorRectTexture(0xA6000000));
         }
 
@@ -108,51 +135,109 @@ public class GinvMenuScreen extends ModularUIScreen {
         panel.setId("ginv_panel");
         panel.layout(layout -> {
             layout.flexDirection(FlexDirection.COLUMN);
-            layout.width(340);
-            layout.maxWidthPercent(96);
-            layout.height(252);
-            layout.maxHeightPercent(94);
             layout.paddingAll(5);
             layout.gapAll(3);
+            if (windowed) {
+                // Fills the OS window between title bar and status bar.
+                layout.widthPercent(100);
+                layout.flexGrow(1);
+            } else {
+                layout.width(340);
+                layout.maxWidthPercent(96);
+                layout.height(266);
+                layout.maxHeightPercent(94);
+            }
         });
         panel.getStyle().backgroundTexture(Sprites.BORDER);
         root.addChild(panel);
 
         // Title bar ------------------------------------------------------
         UIElement titleBar = new UIElement();
+        titleBar.setId("ginv_titlebar");
         titleBar.layout(layout -> {
             layout.flexDirection(FlexDirection.ROW);
             layout.alignItems(AlignItems.CENTER);
-            layout.gapColumn(4);
-            layout.height(14);
             layout.widthPercent(100);
+            if (windowed) {
+                layout.height(15);
+                layout.paddingHorizontal(6);
+                layout.paddingVertical(1);
+                layout.gapAll(2);
+            } else {
+                layout.height(14);
+                layout.gapColumn(4);
+            }
         });
+        if (windowed) {
+            titleBar.getStyle().backgroundTexture(new ColorRectTexture(CHROME_BG));
+        }
+
         Label titleLabel = new Label();
         titleLabel.setText("Guild Invite Fix");
         titleLabel.textStyle(style -> style.textColor(COLOR_TEXT));
-        titleLabel.layout(layout -> layout.flexGrow(1));
+        titleLabel.layout(layout -> {
+            layout.flexGrow(1);
+            layout.minWidth(0);
+        });
+        titleBar.addChild(titleLabel);
 
-        Button closeButton = new Button();
-        closeButton.setText("X");
-        closeButton.layout(layout -> layout.width(16));
-        closeButton.getStyle().tooltips("Close (Esc)");
+        // All three window buttons read GinvMenuWindow.active() at click time,
+        // so they need no rewiring after the window exists.
         if (windowed) {
-            // Rewired to window.close() by popOut() before the window opens —
-            // setScreen(null) must never fire from inside an OS window.
-            closeButton.setOnClick(event -> { });
-        } else {
-            closeButton.setOnClick(event -> Minecraft.getInstance().setScreen(null));
-        }
+            Button pinButton = null;
+            if (OsWindow.supportsAlwaysOnTop()) {
+                pinButton = chromeButton(
+                        DynamicTexture.of(() -> GinvMenuWindow.active() != null
+                                && GinvMenuWindow.active().isAlwaysOnTop()
+                                ? Icons.MAGNET
+                                : Icons.MAGNET.copy().setColor(ColorPattern.GRAY.color)),
+                        "Always on top", false);
+                pinButton.setOnClick(event -> {
+                    GinvMenuWindow window = GinvMenuWindow.active();
+                    if (window != null) {
+                        boolean onTop = !window.isAlwaysOnTop();
+                        window.setAlwaysOnTop(onTop);
+                        GinvDataStore.setAlwaysOnTop(onTop);
+                    }
+                });
+                titleBar.addChild(pinButton);
+            }
 
-        if (windowed) {
-            titleBar.addChildren(titleLabel, closeButton);
+            Button maximizeButton = chromeButton(
+                    DynamicTexture.of(() -> GinvMenuWindow.active() != null
+                            && GinvMenuWindow.active().isMaximized()
+                            ? Icons.WINDOW_RESTORE
+                            : Icons.WINDOW_MAXIMIZE),
+                    "Maximize", false);
+            maximizeButton.setOnClick(event -> {
+                GinvMenuWindow window = GinvMenuWindow.active();
+                if (window != null) window.toggleMaximized();
+            });
+
+            Button closeButton = chromeButton(Icons.WINDOW_CLOSE, "Close (Esc)", true);
+            closeButton.setOnClick(event -> {
+                GinvMenuWindow window = GinvMenuWindow.active();
+                if (window != null) window.onCloseRequested();
+            });
+
+            titleBar.addChildren(maximizeButton, closeButton);
+            root.titleBar = titleBar;
+            root.pinButton = pinButton;
+            root.maximizeButton = maximizeButton;
+            root.closeButton = closeButton;
         } else {
             Button popOutButton = new Button();
             popOutButton.setText("↗");
             popOutButton.layout(layout -> layout.width(16));
             popOutButton.getStyle().tooltips("Pop out into its own window");
             popOutButton.setOnClick(event -> popOut(popup, feedbackLabel));
-            titleBar.addChildren(titleLabel, popOutButton, closeButton);
+
+            Button closeButton = chromeButton(Icons.WINDOW_CLOSE, "Close (Esc)", true);
+            closeButton.setOnClick(event -> Minecraft.getInstance().setScreen(null));
+
+            titleBar.addChildren(popOutButton, closeButton);
+            root.titleBar = titleBar;
+            root.closeButton = closeButton;
         }
         panel.addChild(titleBar);
 
@@ -234,7 +319,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         });
 
         UIElement settingsContent = tabColumn();
-        settingsContent.addChildren(delayRow, whitelistRow, hintLabel, feedbackLabel);
+        settingsContent.addChildren(delayRow, whitelistRow, hintLabel);
         tabView.addTab(new Tab().setText("Settings"), settingsContent);
 
         // --- Lists tab ---
@@ -279,6 +364,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         tabView.addTab(new Tab().setText("Lists"), listsContent);
 
         // --- Monitor tab ---
+        // statusLabel itself lives in the shared status bar below the tabs.
         Label statusLabel = new Label();
         statusLabel.setText(statusText());
         statusLabel.textStyle(style -> {
@@ -294,8 +380,30 @@ public class GinvMenuScreen extends ModularUIScreen {
         fillMonitorScroll(monitorScroll);
 
         UIElement monitorContent = tabColumn();
-        monitorContent.addChildren(statusLabel, monitorScroll);
+        monitorContent.addChildren(monitorScroll);
         tabView.addTab(new Tab().setText("Monitor"), monitorContent);
+
+        // Status bar -----------------------------------------------------
+        // One shared strip for both contexts: live queue status on the left,
+        // transient action feedback on the right.
+        UIElement statusBar = new UIElement();
+        statusBar.setId("ginv_statusbar");
+        statusBar.layout(layout -> {
+            layout.flexDirection(FlexDirection.ROW);
+            layout.alignItems(AlignItems.CENTER);
+            layout.widthPercent(100);
+            layout.height(13);
+            layout.paddingHorizontal(4);
+            layout.gapAll(4);
+        });
+        statusBar.getStyle().backgroundTexture(new ColorRectTexture(CHROME_BG));
+        statusLabel.layout(layout -> {
+            layout.flexGrow(1);
+            layout.minWidth(0);
+        });
+        feedbackLabel.layout(layout -> layout.minWidth(0));
+        statusBar.addChildren(statusLabel, feedbackLabel);
+        panel.addChild(statusBar);
 
         // Hand the live widgets to the refresh loop (GinvRoot.screenTick runs in
         // both screen and windowed contexts) and snapshot the change tokens.
@@ -306,7 +414,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         root.lastVersion = GinvDataStore.version();
         root.lastOnline = onlineSnapshot();
 
-        return new Layout(root, panel, titleBar, closeButton);
+        return new Layout(root, panel);
     }
 
     private static UIElement tabColumn() {
@@ -374,7 +482,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         }
 
         row.addChildren(
-                listButton("W", state == GinvDataStore.ListState.WHITE, COLOR_ACTIVE_WHITE,
+                listButton("W", state == GinvDataStore.ListState.WHITE, TINT_ACTIVE_WHITE,
                         "Whitelist player", () -> {
                             GinvDataStore.PlayerSnapshot current = GinvDataStore.snapshot(name);
                             GinvDataStore.ListState currentState = current == null
@@ -385,7 +493,7 @@ public class GinvMenuScreen extends ModularUIScreen {
                                             ? GinvDataStore.ListState.NONE
                                             : GinvDataStore.ListState.WHITE);
                         }),
-                listButton("B", state == GinvDataStore.ListState.BLACK, COLOR_ACTIVE_BLACK,
+                listButton("B", state == GinvDataStore.ListState.BLACK, TINT_ACTIVE_BLACK,
                         "Blacklist player (always blocks invites)", () -> {
                             GinvDataStore.PlayerSnapshot current = GinvDataStore.snapshot(name);
                             GinvDataStore.ListState currentState = current == null
@@ -406,11 +514,20 @@ public class GinvMenuScreen extends ModularUIScreen {
         return row;
     }
 
-    private static Button listButton(String text, boolean active, int activeColor,
+    private static Button listButton(String text, boolean active, int activeTint,
                                      String tooltip, Runnable action) {
         Button button = new Button();
         button.setText(text);
-        button.text.textStyle(style -> style.textColor(active ? activeColor : COLOR_BUTTON_IDLE));
+        if (active) {
+            // Active states get a background tint so they read at a glance on
+            // the themed blue buttons; idle leaves the theme alone.
+            button.buttonStyle(style -> style
+                    .baseTexture(new ColorRectTexture(activeTint))
+                    .hoverTexture(new ColorRectTexture(activeTint))
+                    .pressedTexture(new ColorRectTexture(activeTint)));
+        }
+        button.text.textStyle(style ->
+                style.textColor(active ? COLOR_TEXT : COLOR_BUTTON_IDLE));
         button.layout(layout -> layout.width(14));
         button.getStyle().tooltips(tooltip);
         button.setOnClick(event -> action.run());
@@ -502,28 +619,49 @@ public class GinvMenuScreen extends ModularUIScreen {
     // ------------------------------------------------------------- pop out
 
     /**
-     * Lifts a freshly built copy of the menu into its own OS window via LDLib2's
-     * {@link ModularUIWindow}, then closes the in-game screen.
+     * Lifts a freshly built copy of the menu into its own OS window, then
+     * closes the in-game screen.
      *
-     * <p>A fresh copy (not the screen's live UI) because closing the screen would
-     * fire {@code onRemoved()} on a shared instance and dispose its style engine.
-     * If the platform refuses a second window we stay in-game and say so.
+     * <p>A fresh copy (not the screen's live UI) because closing the screen
+     * would fire {@code onRemoved()} on a shared instance and dispose its
+     * style engine. If the platform refuses a second window we stay in-game
+     * and say so. The chrome buttons wire themselves to
+     * {@link GinvMenuWindow#active()}, so no post-construction rewiring.
      */
     private static void popOut(boolean popup, Label feedbackLabel) {
         Minecraft mc = Minecraft.getInstance();
         Layout windowed = buildLayout(popup, true);
 
-        ModularUIWindow window = new ModularUIWindow(
-                new ModularUI(UI.of(windowed.root())), "Guild Invite Fix");
-        window.setDragArea(windowed.titleBar());
-        windowed.closeButton().setOnClick(event -> window.close());
+        GinvMenuWindow window = new GinvMenuWindow(
+                new ModularUI(UI.of(windowed.root(), modernSheet())), "Guild Invite Fix");
+        window.setDragArea(windowed.root().titleBar);
+        GinvMenuWindow.track(window);
 
-        if (window.open(Integer.MIN_VALUE, Integer.MIN_VALUE, 372, 288, false)) {
+        if (window.open(Integer.MIN_VALUE, Integer.MIN_VALUE, 420, 300, false)) {
+            if (GinvDataStore.alwaysOnTop() && OsWindow.supportsAlwaysOnTop()) {
+                window.setAlwaysOnTop(true);
+            }
             mc.setScreen(null);
         } else {
             feedbackLabel.setText("Pop-out unavailable — staying in-game.");
             feedbackLabel.textStyle(style -> style.textColor(COLOR_ERROR));
         }
+    }
+
+    /** Icon-only title-bar button: transparent at rest, tinted on hover. */
+    private static Button chromeButton(IGuiTexture icon, String tooltip, boolean closeStyle) {
+        Button button = new Button();
+        button.noText().addPreIcon(icon);
+        button.layout(layout -> {
+            layout.width(16);
+            layout.height(12);
+        });
+        button.getStyle().tooltips(tooltip);
+        button.buttonStyle(style -> style
+                .baseTexture(CHROME_IDLE)
+                .hoverTexture(closeStyle ? new ColorRectTexture(CLOSE_HOVER) : CHROME_HOVER)
+                .pressedTexture(closeStyle ? new ColorRectTexture(CLOSE_PRESSED) : CHROME_PRESSED));
+        return button;
     }
 
     // ---------------------------------------------------------------- root
@@ -542,6 +680,14 @@ public class GinvMenuScreen extends ModularUIScreen {
         Switch whitelistSwitch;
         ScrollerView listsScroll;
         ScrollerView monitorScroll;
+        /** Pop-out window drag target; also double-clicked to maximize. */
+        UIElement titleBar;
+        /** Handed to the OS window as its close target in windowed mode. */
+        Button closeButton;
+        /** Windowed only — absent when the platform has no window buttons. */
+        Button maximizeButton;
+        /** Windowed only, and only when always-on-top is supported. */
+        Button pinButton;
         int lastVersion;
         List<String> lastOnline = List.of();
 

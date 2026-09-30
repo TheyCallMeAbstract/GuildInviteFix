@@ -90,6 +90,7 @@ public final class GinvDataStore {
     private static int minDelayMs = DEFAULT_MIN_DELAY_MS;
     private static int maxDelayMs = DEFAULT_MAX_DELAY_MS;
     private static boolean whitelistOnly;
+    private static boolean alwaysOnTop;
 
     private GinvDataStore() {
     }
@@ -144,6 +145,7 @@ public final class GinvDataStore {
                         if (root.has("minDelayMs")) minDelayMs = clampDelay(root.get("minDelayMs").getAsInt());
                         if (root.has("maxDelayMs")) maxDelayMs = clampDelay(root.get("maxDelayMs").getAsInt());
                         if (root.has("whitelistOnly")) whitelistOnly = root.get("whitelistOnly").getAsBoolean();
+                        if (root.has("alwaysOnTop")) alwaysOnTop = root.get("alwaysOnTop").getAsBoolean();
                     }
                 }
             }
@@ -152,6 +154,7 @@ public final class GinvDataStore {
             minDelayMs = DEFAULT_MIN_DELAY_MS;
             maxDelayMs = DEFAULT_MAX_DELAY_MS;
             whitelistOnly = false;
+            alwaysOnTop = false;
         }
 
         if (minDelayMs > maxDelayMs) {
@@ -189,6 +192,7 @@ public final class GinvDataStore {
             root.addProperty("minDelayMs", minDelayMs);
             root.addProperty("maxDelayMs", maxDelayMs);
             root.addProperty("whitelistOnly", whitelistOnly);
+            root.addProperty("alwaysOnTop", alwaysOnTop);
             atomicWrite(settingsFile(), GSON.toJson(root));
         } catch (IOException e) {
             GuildInviteFix.LOGGER.error("[Ginv] Failed to save settings.json", e);
@@ -354,6 +358,24 @@ public final class GinvDataStore {
             ensureLoaded();
             if (whitelistOnly != value) {
                 whitelistOnly = value;
+                version++;
+                saveSettings();
+            }
+        }
+    }
+
+    public static boolean alwaysOnTop() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            return alwaysOnTop;
+        }
+    }
+
+    public static void setAlwaysOnTop(boolean value) {
+        synchronized (LOCK) {
+            ensureLoaded();
+            if (alwaysOnTop != value) {
+                alwaysOnTop = value;
                 version++;
                 saveSettings();
             }

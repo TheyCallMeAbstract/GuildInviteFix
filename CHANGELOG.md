@@ -21,6 +21,18 @@
   draggable/resizable OS window (LDLib2 `ModularUIWindow`) and closes the
   in-game screen; falls back with an in-menu notice if a second window cannot
   open
+- Program-window chrome for the pop-out menu: icon title-bar buttons
+  (maximize/restore, close with the Windows-style red hover), a persisted
+  always-on-top pin where the platform supports it, double-click the title bar
+  to maximize/restore, and Esc to close (the first press leaves a focused
+  text field)
+- Shared status bar under the tabs — live queue status on the left, transient
+  action feedback on the right — in both the in-game menu and the pop-out
+  window
+- LDLib2 MODERN theme applied to the menu in both contexts; active W/B list
+  buttons now tint their background instead of recoloring their text
+- `/gmenu` focuses an already-open pop-out menu window instead of opening a
+  second copy
 
 ### Changed
 - Fabric Loader minimum bumped to 0.19.5 (required by LDLib2)

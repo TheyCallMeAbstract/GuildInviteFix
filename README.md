@@ -46,9 +46,14 @@ Open the in-game menu (LDLib2 UI):
 - **Monitor** — live queue status plus per-player invite counts and last-invite
   times (persisted across restarts)
 
-The title bar's **↗** button pops the menu out into its own draggable, resizable
-OS window (LDLib2 `ModularUIWindow`) so it stays visible outside the Minecraft
-window; the in-game screen closes when the window opens.
+The title bar's **↗** button pops the menu out into its own program-style OS
+window (LDLib2 `ModularUIWindow`) so it stays visible outside the Minecraft
+window; the in-game screen closes when the window opens. The window behaves
+like a desktop app: drag to move, drag the edges to resize, double-click the
+title bar to maximize/restore, **Esc** to close (the first press leaves a
+focused text field), and — where the platform supports it — a pin for
+always-on-top. Both the in-game menu and the window share a status bar with
+live queue status and action feedback.
 
 `popup` (default) renders over a transparent background and closes on an outside
 click; `screen` renders with a dimmed backdrop. Blacklisted players are never
