@@ -44,12 +44,10 @@
   list, colored from the server's prefix (§ code) with a muted `—` for
   offline/unleveled players; the tab change token now includes levels so
   badges refresh on level-ups; Lists rows gained a **⚡ queue-now** button
-- Independent **menu scale** in Settings: segmented 75/100/125/150/200%
-  control, persisted as `uiScale` in `settings.json`; the pop-out window opens
-  at `base × scale / contentScale` physical pixels and layout divides by the
-  game GUI scale, so it keeps one physical size and its proportions at any
-  Minecraft GUI-scale option (rebuilds on scale or GUI-scale changes, keeping
-  the window's position, size, pin and maximized state)
+- Independent **menu scale**: segmented 75/100/125/150/200% presets persisted
+  as `uiScale` in `settings.json` (now offered in the View menu); rebuilds on
+  scale or GUI-scale changes, keeping the pop-out window's position, size,
+  pin and maximized state
 - **↩ re-dock** button in the pop-out title bar: returns the menu to the
   popup/screen mode it was popped out of
 - Shared command API layer: `GuildLevels` (level + prefix-color extraction,
@@ -75,6 +73,26 @@
 - Pop-out open dimensions are clamped to the window minimum (200×150) and
   the "Pop-out unavailable" feedback now includes the computed size, so a
   refused open is localizable from the failure screenshot
+- **Office theme**: a custom LDLib2 stylesheet (`office.lss`) renders the
+  menu as light document panels with office-blue accents, semantic text
+  classes (`.ginv-body`, `.ginv-caption`, `.ginv-section`) and shared
+  chrome surfaces, applied as a subtree so vanilla screens stay untouched
+- **Top bar** (`ginv_topbar`) in both contexts: menu title, live queue
+  status, the **SkyBlock chip** (`ginv_skyblock_status`, `.ginv-sky-on` /
+  `.ginv-sky-off` — grey outside SkyBlock, blue inside) and a **View ▾**
+  menu (`ginv_view_menu` → `ginv_view_popover`) holding the scale presets
+  (`ginv_scale_100` … `ginv_scale_200`), the **Autoscale** switch
+  (`ginv_autoscale`, default ON — the fitted scale is applied to the build
+  and never persisted; clicking a preset turns autoscale off) and the
+  popup/screen mode selector (`ginv_mode_group` with `ginv_mode_popup` /
+  `ginv_mode_screen`, a state-carrying no-op inside the OS window)
+- **Inter** font for the menu (`assets/guildinvitefix/font/inter.json` +
+  `inter.ttf`)
+- Headless JUnit for the pure scale math split out of `GinvMenuScreen`:
+  `fitScaleFor` (0.75 floor, 2.0 cap, degenerate-viewport fallback, never
+  persists), `popoutSizeFor` (WYSIWYG panel × guiScale × contentScale with
+  the platform floor, ±10% contract) and `GuildTestGateway`'s SkyBlock
+  verdict gating (`active && skyBlock`, `reset()` drops fixtures)
 
 ### Changed
 - Menu tabs reordered to **Control | Lists | Monitor | Settings**, with every
@@ -85,6 +103,20 @@
 - Fabric Loader minimum bumped to 0.19.5 (required by LDLib2)
 - Fabric API bumped to 0.155.3+26.1.2
 - Invite delay range (default 220–720 ms) is now configurable from the menu
+- The **Settings** tab now holds only invite delays and whitelist-only mode;
+  scale presets, autoscale and the popup/screen mode moved to the View menu
+- Autoscale is **on by default**: every in-screen build fits the menu into
+  the `[0.75, 2.0]` band for the current viewport without touching the
+  stored preset
+- The pop-out window is **WYSIWYG**: it opens from the measured panel
+  (panel px × GUI scale × framebuffer scale, floored at the platform
+  minimum), with the legacy `base × scale / contentScale` kept only as the
+  fallback when the panel cannot be measured — proportions now track the
+  in-game menu at any Minecraft GUI-scale option
+- Top-bar element ids replaced the legacy title-bar set (`ginv_topbar`,
+  `ginv_close`, `ginv_always_on_top`, `ginv_view_menu` in place of
+  `ginv_titlebar`, `ginv_win_close`, `ginv_pin`); the uitest scenarios and
+  docs use the new contract only
 
 ### Fixed
 - The documented GUI-suite command `-PldTest=mod:guildinvitefix` matched no

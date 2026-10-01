@@ -30,8 +30,8 @@ public final class GuildLevels {
     /** Matches {@code [101]} in a fully color-stripped prefix. */
     private static final Pattern PLAIN_LEVEL = Pattern.compile("\\[(\\d+)]");
 
-    /** Badge color when the prefix carries no usable color code. */
-    public static final int DEFAULT_COLOR = 0xE0E0E0;
+    /** Badge color when the prefix carries no usable color code (opaque). */
+    public static final int DEFAULT_COLOR = 0xFFE0E0E0;
 
     private GuildLevels() {
     }

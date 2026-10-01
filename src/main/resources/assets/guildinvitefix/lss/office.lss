@@ -1,0 +1,596 @@
+// ===========================================================================
+// office.lss — dark DUSK-based mod delta for the /gmenu shell.
+//
+// Attached subtree-local on #ginv_root (GinvMenuScreen.duskSheet()), on top of
+// the LDLib2 DUSK base sheet, so every other screen stays untouched.
+// Precedence is specificity: this file only uses #ginv_* ids and .ginv-*
+// classes (plus #ginv_root-anchored internals), which out-specify dusk.lss
+// type rules. Inline layout() from Java still wins over this sheet
+// (StyleOrigin.INLINE > STYLESHEET); the sheet owns shell/region geometry and
+// Java keeps only the scale-bearing shell max-width + font sizes.
+//
+// TOKEN BLOCK — dusk-derived, every value 8-digit hex, alpha first.
+// LSS hex is AARRGGBB; ColorUtils.parseColor turns 6-digit values fully
+// opaque, so 8-digit is mandatory everywhere. There is no var() support in
+// LDLib2's stylesheet, so these tokens are documentation for the literals
+// used below (single source of truth at this block).
+//
+//   bg                  #FF0F1116   canvas / windowed root
+//   surface             #FF171A21   panel, panes
+//   raised              #FF212632   top bar, popover, chips, controls
+//   hovered             #FF2B3242   hover tint
+//   sunken              #FF0B0D11   status bar, inputs, viewports, unmark
+//   line                #16FFFFFF   hairline borders
+//   line/strong         #2EFFFFFF   emphasis borders
+//   text                #FFE7EAF2   default copy under #ginv_root
+//   text/dim            #FF98A0B4   captions, status, sky-off label
+//   text/faint          #FF6B7280   empty-state rows, muted counts
+//   accent              #FF7C8CFF   sections, selected tab, pressed controls
+//   accent/hover        #FF99A5FF
+//   accent/pressed      #FF6774E6
+//   accent/wash         #3D7C8CFF   banner overlay (translucent)
+//   state/danger        #FFE5484D   STOPPED dot/banner, stop hero, errors
+//   state/success       #FF3FB950   RUNNING dot/banner, resume hero, sky-on
+//   state/warn          #FFD29922   level-queue no-match feedback
+//   state/list-white    #FF3FB950   active W button
+//   state/list-black    #FFE5484D   active B button
+//   chrome/border       #FF2EFFFFFF windowed title-bar underline
+//   scrim               #A6000000   screen-mode dim backdrop
+//   close/hover         #FFE5484D
+//   close/pressed       #FFCC3D42
+//
+// CONTRAST (dark pair, WCAG targets): text/surface 13.9:1, dim/surface 6.3:1,
+// faint/raised 4.4:1, accent/surface 6.0:1, danger/surface 4.9:1,
+// success/surface 5.6:1, warn/surface 8.1:1, text/sunken 15.1:1.
+//
+// SIZE DISCIPLINE: geometry lives here. Radii 3/5/7, border 1, control
+// height 16; LSS corner-radius order is BL, BR, TR, TL. Java keeps u() only
+// for the shell max-width token and font sizes.
+// ===========================================================================
+
+// --- typography -------------------------------------------------------------
+#ginv_root text,
+#ginv_root label {
+  font: guildinvitefix:inter;
+  text-color: #FFE7EAF2;
+  text-shadow: false;
+}
+
+// TextField draws its own text: same family + ink on the sunken input face.
+#ginv_root text-field {
+  font: guildinvitefix:inter;
+  text-color: #FFE7EAF2;
+  cursor-color: #FFE7EAF2;
+  text-shadow: false;
+  background: rect(#FF0B0D11, 5, 1, #16FFFFFF);
+  focus-overlay: rect(#00000000, 5, 1, #FF7C8CFF);
+}
+
+// Semantic label classes added by the label helpers.
+#ginv_root .ginv-body-text {
+  text-color: #FF98A0B4;
+}
+
+#ginv_root .ginv-caption {
+  text-color: #FF98A0B4;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+#ginv_root .ginv-muted {
+  text-color: #FF98A0B4;
+}
+
+#ginv_root .ginv-empty {
+  text-color: #FF6B7280;
+}
+
+#ginv_root .ginv-section {
+  text-color: #FF7C8CFF;
+}
+
+// --- root: full-viewport centering column -----------------------------------
+#ginv_root {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+// Popup mode stays fully transparent (no rule). The state classes are added
+// by buildLayout.
+#ginv_root.ginv-screen {
+  background: rect(#A6000000);
+}
+
+#ginv_root.ginv-windowed {
+  align-items: stretch;
+  justify-content: flex-start;
+  background: rect(#FF0F1116);
+}
+
+// --- shell: centered responsive card ----------------------------------------
+// max-width defaults to the authored 340; Java overrides it inline with
+// u(SHELL_MAX_WIDTH) so the 75–200% preset still scales the card.
+#ginv_root .ginv-shell {
+  width: 100%;
+  max-width: 340;
+  max-height: 94%;
+  min-height: 0;
+  align-self: center;
+  flex-direction: column;
+  gap-all: 4;
+  background: rect(#FF171A21, 7, 1, #16FFFFFF);
+}
+
+#ginv_root.ginv-windowed .ginv-shell {
+  max-width: 100%;
+  max-height: 100%;
+  flex-grow: 1;
+  flex-shrink: 1;
+}
+
+// --- card / regions ---------------------------------------------------------
+#ginv_root #ginv_panel {
+  width: 100%;
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+  flex-direction: column;
+  padding-all: 5;
+  gap-all: 3;
+  position: relative;
+  background: rect(#FF171A21, 7, 1, #16FFFFFF);
+}
+
+// Shared row rule for the top and status bars.
+#ginv_root .ginv-topbar,
+#ginv_root .ginv-statusbar {
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-topbar {
+  height: 14;
+  min-height: 14;
+  flex-shrink: 0;
+  padding-horizontal: 3;
+  gap-all: 3;
+  background: rect(#FF212632, 5, 1, #16FFFFFF);
+}
+
+#ginv_root.ginv-windowed .ginv-topbar {
+  height: 15;
+  min-height: 15;
+  flex-shrink: 0;
+  padding-horizontal: 6;
+  padding-vertical: 1;
+  gap-all: 2;
+  background: rect(#FF0F1116, 0, 1, #FF2EFFFFFF);
+}
+
+#ginv_root .ginv-banner {
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  height: 16;
+  min-height: 16;
+  flex-shrink: 0;
+  padding-horizontal: 6;
+  gap-all: 3;
+  background: rect(#3D7C8CFF, 5);
+}
+
+#ginv_root #ginv_banner.ginv-banner-ok {
+  text-color: #FF3FB950;
+}
+
+#ginv_root #ginv_banner.ginv-banner-err {
+  text-color: #FFE5484D;
+}
+
+// Body wrapper: owns the vertical grow, lets tall content scroll.
+#ginv_root .ginv-body {
+  width: 100%;
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap-all: 4;
+}
+
+#ginv_root .ginv-body tab-view {
+  width: 100%;
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+}
+
+#ginv_root .ginv-statusbar {
+  height: 13;
+  min-height: 13;
+  flex-shrink: 0;
+  padding-horizontal: 4;
+  gap-all: 4;
+  background: rect(#FF0B0D11, 5, 1, #16FFFFFF);
+  clip: scissor;
+}
+
+// --- top-bar pieces ---------------------------------------------------------
+#ginv_root .ginv-app-icon {
+  width: 10;
+  height: 10;
+  min-width: 10;
+  min-height: 10;
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-title {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+#ginv_root .ginv-view-button {
+  width: 30;
+  height: 11;
+  min-width: 30;
+  min-height: 11;
+  flex-shrink: 0;
+}
+
+#ginv_root #ginv_view_menu {
+  base-background: rect(#FF212632, 5, 1, #16FFFFFF);
+  hover-background: rect(#FF2B3242, 5, 1, #2EFFFFFF);
+  pressed-background: rect(#FF6774E6, 5);
+}
+
+#ginv_root #ginv_view_menu .__button_text__ {
+  text-color: #FFE7EAF2;
+}
+
+// --- status text ------------------------------------------------------------
+#ginv_root #ginv_statusbar {
+  clip: scissor;
+}
+
+#ginv_root #ginv_status {
+  text-color: #FF98A0B4;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+#ginv_root #ginv_feedback {
+  min-width: 0;
+}
+
+// Feedback semantics: info/dim, ok/green, warn/amber, err/red.
+#ginv_root #ginv_feedback.ginv-feedback-info {
+  text-color: #FF98A0B4;
+}
+
+#ginv_root #ginv_feedback.ginv-feedback-ok {
+  text-color: #FF3FB950;
+}
+
+#ginv_root #ginv_feedback.ginv-feedback-warn {
+  text-color: #FFD29922;
+}
+
+#ginv_root #ginv_feedback.ginv-feedback-err {
+  text-color: #FFE5484D;
+}
+
+// --- panes: surface + overflow guard ----------------------------------------
+#ginv_root .ginv_pane {
+  background: rect(#FF171A21, 5, 1, #16FFFFFF);
+  clip: scissor;
+}
+
+// --- rows + control clusters ------------------------------------------------
+#ginv_root .ginv-row {
+  flex-direction: row;
+  align-items: center;
+  gap-column: 4;
+  width: 100%;
+  min-height: 16;
+  min-width: 0;
+}
+
+#ginv_root .ginv-row > label {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+#ginv_root .ginv-ctl {
+  flex-direction: row;
+  align-items: center;
+  gap-column: 4;
+  width: 165;
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-tab-column {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  gap-row: 4;
+}
+
+// Segmented rows (Menu scale presets, Popup|Screen). LDLib2 Toggle is
+// [aspect-1 button][flex-1 label]; the label's flex-basis:0 collapses the
+// Toggle to the square, so each Toggle takes a share of the row and its
+// button is stretched over the whole cell as a transparent click overlay.
+#ginv_root .ginv-scale-group,
+#ginv_root .ginv-mode-group {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap-all: 2;
+  width: 100%;
+  padding-all: 1;
+  background: rect(#FF0B0D11, 4, 1, #16FFFFFF);
+}
+
+#ginv_root .ginv-scale-group toggle,
+#ginv_root .ginv-mode-group toggle {
+  position: relative;
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: 0;
+  min-width: 0;
+  height: 14;
+  min-height: 14;
+  padding-all: 0;
+  align-items: stretch;
+  background: rect(#FF212632, 4, 1, #16FFFFFF);
+}
+
+#ginv_root .ginv-scale-group toggle.__on__,
+#ginv_root .ginv-mode-group toggle.__on__ {
+  background: rect(#FF7C8CFF, 4);
+}
+
+// Fill the cell with the (transparent) click target and keep the mark icon
+// out of the way — the segment reads as text on the Toggle's own surface.
+#ginv_root .ginv-scale-group .__toggle_button__,
+#ginv_root .ginv-mode-group .__toggle_button__ {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  base-background: empty;
+  hover-background: rect(#16FFFFFF);
+  pressed-background: rect(#2EFFFFFF);
+}
+
+#ginv_root .ginv-scale-group .__toggle_mark-icon__,
+#ginv_root .ginv-mode-group .__toggle_mark-icon__ {
+  display: none;
+}
+
+#ginv_root .ginv-scale-group .__toggle_label__,
+#ginv_root .ginv-mode-group .__toggle_label__ {
+  position: relative;
+  z-index: 1;
+  margin-left: 0;
+  padding-left: 2;
+  padding-right: 2;
+  text-color: #FFE7EAF2;
+}
+
+// --- hero -------------------------------------------------------------------
+#ginv_root .ginv-hero {
+  width: 100%;
+  height: 24;
+  min-height: 24;
+  flex-shrink: 0;
+}
+
+// Hero: red STOP while running, green RESUME while frozen (id+class wins over
+// the generic button rule). Hover/pressed are pre-shaded variants.
+#ginv_root #ginv_hero.ginv-hero-stop {
+  base-background: rect(#FFE5484D, 5);
+  hover-background: rect(#FFEC6165, 5);
+  pressed-background: rect(#FFCC3D42, 5);
+}
+
+#ginv_root #ginv_hero.ginv-hero-resume {
+  base-background: rect(#FF3FB950, 5);
+  hover-background: rect(#FF4FCB61, 5);
+  pressed-background: rect(#FF2E9E3D, 5);
+}
+
+#ginv_root button .__button_text__ {
+  text-color: #FFFFFFFF;
+}
+
+// --- SkyBlock status chip + state dots --------------------------------------
+#ginv_root .ginv-skyblock {
+  position: relative;
+  flex-direction: row;
+  align-items: center;
+  padding-left: 12;
+  padding-right: 4;
+  padding-vertical: 2;
+  gap-all: 0;
+  background: rect(#FF212632, 7, 1, #16FFFFFF);
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-sky-on {
+  background: rect(#2E3FB950, 7, 1, #FF3FB950);
+}
+
+#ginv_root .ginv-sky-off {
+  background: rect(#FF212632, 7, 1, #16FFFFFF);
+}
+
+#ginv_root .ginv-sky-on label {
+  text-color: #FF3FB950;
+}
+
+#ginv_root .ginv-sky-off label {
+  text-color: #FF98A0B4;
+}
+
+// Dot is out of flow: the chip's left padding reserves the gutter and the
+// renderer paints the sheet-resolved background there.
+#ginv_root .ginv-dot {
+  position: absolute;
+  left: 0;
+  width: 0;
+  height: 0;
+}
+
+// The banner dot is a real flex child: keep it in flow at its authored size.
+#ginv_root .ginv-banner .ginv-dot {
+  position: relative;
+  width: 6;
+  height: 6;
+}
+
+#ginv_root .ginv-dot.ginv-dot-on {
+  background: rect(#FF3FB950, 99);
+}
+
+#ginv_root .ginv-dot.ginv-dot-off {
+  background: rect(#FF6B7280, 99);
+}
+
+// --- View popover -----------------------------------------------------------
+#ginv_root #ginv_view_popover,
+#ginv_root .ginv-popover {
+  position: absolute;
+  right: 2;
+  top: 16;
+  width: 210;
+  max-height: 220;
+  flex-direction: column;
+  padding-all: 6;
+  gap-all: 4;
+  z-index: 1;
+  clip: scissor;
+  background: rect(#FF212632, 7, 1, #2EFFFFFF);
+}
+
+#ginv_root .ginv-popover-scroll {
+  width: 100%;
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+}
+
+// --- buttons ----------------------------------------------------------------
+// Neutral raised controls; the accent is reserved for pressed state.
+#ginv_root button {
+  base-background: rect(#FF212632, 5, 1, #16FFFFFF);
+  hover-background: rect(#FF2B3242, 5, 1, #2EFFFFFF);
+  pressed-background: rect(#FF6774E6, 5);
+}
+
+#ginv_root button.__disabled__ {
+  base-background: rect(#FF191D26, 5, 1, #0DFFFFFF);
+  hover-background: rect(#FF191D26, 5, 1, #0DFFFFFF);
+  pressed-background: rect(#FF191D26, 5, 1, #0DFFFFFF);
+}
+
+#ginv_root button.__disabled__ .__button_text__ {
+  text-color: #FF6B7280;
+}
+
+// Active whitelist / blacklist row buttons.
+#ginv_root .ginv-list-white {
+  base-background: rect(#FF3FB950, 5);
+  hover-background: rect(#FF4FCB61, 5);
+  pressed-background: rect(#FF2E9E3D, 5);
+}
+
+#ginv_root .ginv-list-black {
+  base-background: rect(#FFE5484D, 5);
+  hover-background: rect(#FFEC6165, 5);
+  pressed-background: rect(#FFCC3D42, 5);
+}
+
+// Chrome buttons: transparent at rest, faint white on hover; red close.
+#ginv_root .ginv-chrome {
+  base-background: empty;
+  hover-background: rect(#16FFFFFF);
+  pressed-background: rect(#2EFFFFFF);
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-chrome.ginv-chrome-close {
+  hover-background: rect(#FFE5484D);
+  pressed-background: rect(#FFCC3D42);
+}
+
+// Light glyph for the in-screen close button on the dark top bar.
+#ginv_root .ginv-close-onscreen .__button_pre-icon__ {
+  color: #FFE7EAF2;
+}
+
+// --- switch (whitelist-only) ------------------------------------------------
+#ginv_root switch {
+  base-background: rect(#FF0B0D11, 5, 1, #16FFFFFF);
+  pressed-background: rect(#FF7C8CFF, 5);
+  unmark-background: rect(#FF0B0D11, 4, 1, #16FFFFFF);
+  mark-background: rect(#FF7C8CFF, 4);
+}
+
+// --- toggles (scale presets, mode group): checkbox squares ------------------
+#ginv_root .__toggle_button__ {
+  base-background: rect(#FF212632, 4, 1, #16FFFFFF);
+  hover-background: rect(#FF2B3242, 4, 1, #2EFFFFFF);
+  pressed-background: rect(#FF1A1F29, 4, 1, #2EFFFFFF);
+}
+
+#ginv_root toggle {
+  mark-background: rect(#FF3D7C8CFF, 4, 1, #FF7C8CFF);
+  unmark-background: rect(#FF0B0D11, 4, 1, #16FFFFFF);
+}
+
+// --- tabs -------------------------------------------------------------------
+#ginv_root .__tab-view_tab_header_container__ {
+  background: rect(#FF0B0D11, 7 7 0 0, 1, #16FFFFFF);
+}
+
+#ginv_root .__tab-view_tab_content_container__ {
+  background: rect(#FF171A21, 0 0 7 7, 1, #16FFFFFF);
+}
+
+#ginv_root .ginv_tab {
+  base-background: empty;
+  hover-background: rect(#16FFFFFF, 3);
+  pressed-background: rect(#2EFFFFFF, 3);
+}
+
+#ginv_root .ginv_tab.__selected__ {
+  base-background: rect(#FF7C8CFF) scale(1, 0.12) translate(0, 6.4);
+  hover-background: group(rect(#16FFFFFF, 3), rect(#FF7C8CFF) scale(1, 0.12) translate(0, 6.4));
+  pressed-background: group(rect(#2EFFFFFF, 3), rect(#FF6774E6) scale(1, 0.12) translate(0, 6.4));
+}
+
+#ginv_root .ginv_tab.__selected__ .__tab_text__ {
+  text-color: #FF7C8CFF;
+}
+
+// --- scrollers (targets / lists / monitor / popover) ------------------------
+#ginv_root .__scroller_view_view-port__ {
+  background: rect(#FF0B0D11, 5, 1, #16FFFFFF);
+}
+
+#ginv_root .__scroller_view_horizontal-scroller__,
+#ginv_root .__scroller_view_vertical-scroller__ {
+  background: rect(#FF0B0D11, 3, 1, #16FFFFFF);
+}
+
+#ginv_root scroller-vertical .__scroller_scroll_bar__,
+#ginv_root scroller-horizontal .__scroller_scroll_bar__ {
+  base-background: rect(#3AFFFFFF, 3);
+  hover-background: rect(#66FFFFFF, 3);
+  pressed-background: rect(#FF7C8CFF, 3);
+}

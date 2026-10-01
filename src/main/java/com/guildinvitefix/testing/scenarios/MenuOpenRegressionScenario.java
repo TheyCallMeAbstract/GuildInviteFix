@@ -1,6 +1,7 @@
 package com.guildinvitefix.testing.scenarios;
 
 import com.ginv.command.GmenuCommand;
+import com.ginv.testing.GuildTestGateway;
 import com.ginv.ui.GinvMenuScreen;
 import com.ginv.ui.GinvMenuWindow;
 import com.lowdragmc.lowdraglib2.registry.RegistrationEnvironment;
@@ -38,6 +39,9 @@ public class MenuOpenRegressionScenario implements UIScenario {
             GinvMenuWindow stale = GinvMenuWindow.active();
             if (stale != null) stale.onCloseRequested();
             if (ctx.screen() != null) ctx.mc().setScreen(null);
+            // A fixture left behind by a previous scenario would flip the
+            // chip's class — start from the real (non-SkyBlock) verdict.
+            GuildTestGateway.reset();
         })
                 .ticks(1)
                 // The real /gmenu path: arm the deferred open, let the
@@ -47,6 +51,13 @@ public class MenuOpenRegressionScenario implements UIScenario {
                 .awaitModularUI()
                 .awaitElement("#ginv_panel")
                 .checkExists("#ginv_panel")
+                .ticks(2)
+                .checkExists("#ginv_topbar")
+                .checkExists("#ginv_view_menu")
+                .checkExists("#ginv_skyblock_status")
+                .checkVisible("#ginv_skyblock_status")
+                .checkCount(".ginv-sky-off", 1)
+                .checkCount(".ginv-topbar", 1)
                 .checkTextContains("#ginv_banner", "RUNNING")
                 .checkCount(".ginv_tab", 4)
                 .check("the panel rendered a real element tree",

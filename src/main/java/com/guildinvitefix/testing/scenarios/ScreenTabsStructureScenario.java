@@ -4,6 +4,7 @@ import com.ginv.ui.GinvMenuScreen;
 import com.ginv.ui.GinvMenuWindow;
 import com.lowdragmc.lowdraglib2.registry.RegistrationEnvironment;
 import com.lowdragmc.lowdraglib2.registry.annotation.LDLRegisterClient;
+import com.lowdragmc.lowdraglib2.uitest.ElementBounds;
 import com.lowdragmc.lowdraglib2.uitest.ScenarioBuilder;
 import com.lowdragmc.lowdraglib2.uitest.ScenarioOptions;
 import com.lowdragmc.lowdraglib2.uitest.UIScenario;
@@ -63,11 +64,44 @@ public class ScreenTabsStructureScenario implements UIScenario {
             s.screenshot("tab_" + slug);
         }
 
-        s.closeScreen()
+        // T13 containment: with Settings open (last slug walked) the pane and
+        // the status-bar pieces must live inside the panel — the office
+        // rework re-parented them, and a stray absolute position would put
+        // them behind/next to the panel instead of in it.
+        s.check("the settings pane is contained in the panel", ctx -> {
+            var pane = ctx.el("#ginv_pane_settings").bounds();
+            var panel = ctx.el("#ginv_panel").bounds();
+            return contains(panel, pane);
+        })
+                .check("the status bar is contained in the panel", ctx -> {
+                    var bar = ctx.el("#ginv_statusbar").bounds();
+                    var panel = ctx.el("#ginv_panel").bounds();
+                    return contains(panel, bar);
+                })
+                .check("status text stays within the panel", ctx -> {
+                    var bounds = ctx.el("#ginv_status").bounds();
+                    var panel = ctx.el("#ginv_panel").bounds();
+                    return bounds.isEmpty() || contains(panel, bounds);
+                })
+                .check("feedback text stays within the panel", ctx -> {
+                    var bounds = ctx.el("#ginv_feedback").bounds();
+                    var panel = ctx.el("#ginv_panel").bounds();
+                    return bounds.isEmpty() || contains(panel, bounds);
+                })
+                .closeScreen()
                 .teardown("close anything left over", ctx -> {
                     GinvMenuWindow window = GinvMenuWindow.active();
                     if (window != null) window.onCloseRequested();
                     if (ctx.screen() != null) ctx.mc().setScreen(null);
                 });
+    }
+
+    /** {@code inner} inside {@code outer}, 0.5 px of slack for rounding. */
+    private static boolean contains(ElementBounds outer, ElementBounds inner) {
+        float tolerance = 0.5f;
+        return inner.x() >= outer.x() - tolerance
+                && inner.y() >= outer.y() - tolerance
+                && inner.right() <= outer.right() + tolerance
+                && inner.bottom() <= outer.bottom() + tolerance;
     }
 }

@@ -24,7 +24,8 @@ import java.util.Map;
  * <p>Two small JSON files live under {@code config/guildinvitefix/}:
  * <ul>
  *   <li>{@code players.json} — exact-cased name → invite count, last invite time, list state</li>
- *   <li>{@code settings.json} — min/max delay (ms) and the whitelist-only flag</li>
+ *   <li>{@code settings.json} — min/max delay (ms), whitelist-only, always-on-top,
+ *       menu scale and the autoscale flag</li>
  * </ul>
  *
  * <p>All access is guarded by a single lock because mutations happen both on the client
@@ -95,6 +96,11 @@ public final class GinvDataStore {
     private static boolean whitelistOnly;
     private static boolean alwaysOnTop;
     private static double uiScale = DEFAULT_UI_SCALE;
+    /**
+     * Viewport-fit scaling for the in-screen menu (design: default ON).
+     * Old configs have no key and therefore opt in.
+     */
+    private static boolean autoscale = true;
 
     private GinvDataStore() {
     }
@@ -151,6 +157,8 @@ public final class GinvDataStore {
                         if (root.has("whitelistOnly")) whitelistOnly = root.get("whitelistOnly").getAsBoolean();
                         if (root.has("alwaysOnTop")) alwaysOnTop = root.get("alwaysOnTop").getAsBoolean();
                         if (root.has("uiScale")) uiScale = clampScale(root.get("uiScale").getAsDouble());
+                        // Missing key → default true (old configs opt into autoscale).
+                        if (root.has("autoscale")) autoscale = root.get("autoscale").getAsBoolean();
                     }
                 }
             }
@@ -161,6 +169,7 @@ public final class GinvDataStore {
             whitelistOnly = false;
             alwaysOnTop = false;
             uiScale = DEFAULT_UI_SCALE;
+            autoscale = true;
         }
 
         if (minDelayMs > maxDelayMs) {
@@ -205,6 +214,7 @@ public final class GinvDataStore {
             root.addProperty("whitelistOnly", whitelistOnly);
             root.addProperty("alwaysOnTop", alwaysOnTop);
             root.addProperty("uiScale", uiScale);
+            root.addProperty("autoscale", autoscale);
             atomicWrite(settingsFile(), GSON.toJson(root));
         } catch (IOException e) {
             GuildInviteFix.LOGGER.error("[Ginv] Failed to save settings.json", e);
@@ -409,6 +419,29 @@ public final class GinvDataStore {
             double clamped = clampScale(value);
             if (clamped != uiScale) {
                 uiScale = clamped;
+                version++;
+                saveSettings();
+            }
+        }
+    }
+
+    /**
+     * Whether the menu viewport-fits its scale on every screen build (default ON).
+     * Persistence only — the fit math lives in {@code GinvMenuScreen}.
+     */
+    public static boolean autoscale() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            return autoscale;
+        }
+    }
+
+    /** Persists the autoscale flag; toggling it bumps the version like other settings. */
+    public static void setAutoscale(boolean value) {
+        synchronized (LOCK) {
+            ensureLoaded();
+            if (autoscale != value) {
+                autoscale = value;
                 version++;
                 saveSettings();
             }

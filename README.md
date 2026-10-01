@@ -43,9 +43,7 @@ Open the in-game menu (LDLib2 UI) with four tabs:
   **STOP/RESUME INVITES** toggle, queue by name(s), queue by guild level
   (live tab-range caption; disabled with a hint outside SkyBlock), and the
   current-target list with per-row remove and **Clear**
-- **Settings** — invite delay range (min/max ms), whitelist-only mode, and the
-  menu **scale** (75–200%, persisted; the pop-out window keeps its physical
-  size regardless of Minecraft's GUI-scale option)
+- **Settings** — invite delay range (min/max ms) and whitelist-only mode
 - **Lists** — whitelist/blacklist management; each row shows the player's head,
   name, their guild level (colored like the server renders it), a **⚡** queue
   button and three buttons: **W** (whitelist), **B** (blacklist), **X** (remove
@@ -53,15 +51,27 @@ Open the in-game menu (LDLib2 UI) with four tabs:
 - **Monitor** — live queue status plus per-player invite counts and last-invite
   times (persisted across restarts)
 
-The title bar's **↗** button pops the menu out into its own program-style OS
+Above the tabs, the **top bar** shows the menu title, the live queue status,
+the **SkyBlock chip** (grey outside SkyBlock, blue inside) and a **View ▾**
+menu with the scale presets (75–200%), an **Autoscale** switch (fit the menu
+to the viewport; default on, the fit itself is never persisted, and choosing
+a preset turns it off) and the popup/screen mode (`screen` applies from the
+next open; the OS window keeps its own geometry either way).
+
+The top bar's **↗** button pops the menu out into its own program-style OS
 window (LDLib2 `ModularUIWindow`) so it stays visible outside the Minecraft
-window; the in-game screen closes when the window opens. The window behaves
-like a desktop app: drag to move, drag the edges to resize, double-click the
-title bar to maximize/restore, **Esc** to close (the first press leaves a
-focused text field), a **↩ re-dock** button that puts the menu back into the
-screen mode it came from, and — where the platform supports it — a pin for
-always-on-top. Both the in-game menu and the window share a status bar with
-live queue status and action feedback.
+window; the in-game screen closes when the window opens. The window opens
+**WYSIWYG**: its size comes from the measured panel scaled to physical
+pixels (panel × GUI scale × framebuffer scale, floored at the platform's
+200×150 minimum), falling back to the base layout × menu scale when the
+panel cannot be measured — so its proportions track the in-game menu at any
+Minecraft GUI-scale option. It behaves like a desktop app: drag to move,
+drag the edges to resize, double-click the title bar to maximize/restore,
+**Esc** to close (the first press leaves a focused text field), a **↩
+re-dock** button that puts the menu back into the screen mode it came from,
+and — where the platform supports it — a pin for always-on-top. Both the
+in-game menu and the window share a status bar with live queue status and
+action feedback.
 
 `popup` (default) renders over a transparent background and closes on an outside
 click; `screen` renders with a dimmed backdrop. Blacklisted players are never
