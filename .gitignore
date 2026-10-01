@@ -38,3 +38,9 @@ hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+
+# tooling (local, not part of the mod)
+
+.fabric/
+.opencode/
+openspec/
