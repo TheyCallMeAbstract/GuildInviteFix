@@ -97,6 +97,9 @@
   }
   #size-sm:checked ~ .stage { --u: 1.5px; }
   #size-lg:checked ~ .stage { --u: 2.6px; }
+  /* 16:9 client (headless default 1920x1080 -> logical 960x540 -> 303u tall).
+     The shell is a fixed 340u wide, so only its height budget changes. */
+  #frame-16x9:checked ~ .stage .screen { --screen-h: 303; }
 
   /* ---------- page shell --------------------------------------------------- */
   * { box-sizing: border-box; }
@@ -135,19 +138,39 @@
   #sky-off:checked ~ .harness label[for=sky-off],
   #sky-on:checked ~ .harness label[for=sky-on],
   #mode-popup:checked ~ .harness label[for=mode-popup],
-  #mode-screen:checked ~ .harness label[for=mode-screen] {
+  #mode-screen:checked ~ .harness label[for=mode-screen],
+  #frame-measured:checked ~ .harness label[for=frame-measured],
+  #frame-16x9:checked ~ .harness label[for=frame-16x9] {
     background: #7C8CFF; border-color: #7C8CFF; color: #0b0d14; font-weight: 600;
   }
   .harness .tag { margin-left: auto; color: #5a6178; font-size: 11px; }
 
-  /* ---------- stage + backdrop -------------------------------------------- */
+  /* ---------- stage = the "desktop" --------------------------------------- */
   .stage {
-    position: relative;
     height: calc(100vh - 45px);
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
     background:
-      radial-gradient(120% 90% at 50% 0%, #1a2340 0%, #0c0f18 55%, #05060a 100%);
+      radial-gradient(120% 90% at 50% 30%, #12182a 0%, #080a12 60%, #04050a 100%);
+  }
+  /* ---------- the client frame (what the player actually sees) ------------ */
+  /* Logical client area, expressed in LSS units. At the uitest defaults the
+     client is 1920x1008 framebuffer @ guiScale 2 -> 960x504 logical px. With
+     1u = 1.781 logical px that is 539u x 283u (aspect ~16:9). The shell is a
+     fixed 340u wide and capped at 94% of this height, so its in-game footprint
+     is 340u x 266u centred in 539u x 283u. */
+  .screen {
+    --screen-w: 539;   /* logical client width  in u */
+    --screen-h: 283;   /* logical client height in u */
+    position: relative;
+    width: calc(var(--u) * var(--screen-w));
+    height: calc(var(--u) * var(--screen-h));
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #2a3346;
+    border-radius: 4px;
+    background: #05060a;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.03);
   }
   /* popup mode: translucent so the "world" reads through (LSS: no rule) */
   .backdrop {
@@ -549,6 +572,8 @@
   <input class="in" type="radio" name="sky" id="sky-on">
   <input class="in" type="radio" name="mode" id="mode-popup" checked>
   <input class="in" type="radio" name="mode" id="mode-screen">
+  <input class="in" type="radio" name="frame" id="frame-measured" checked>
+  <input class="in" type="radio" name="frame" id="frame-16x9">
 
   <header class="harness">
     <div class="grp"><b>Theme</b>
@@ -561,10 +586,13 @@
       <label for="sky-off">Off</label><label for="sky-on">On</label></div>
     <div class="grp"><b>Mode</b>
       <label for="mode-popup">Popup</label><label for="mode-screen">Screen</label></div>
+    <div class="grp"><b>Client</b>
+      <label for="frame-measured">1920×1008</label><label for="frame-16x9">16:9</label></div>
     <span class="tag">/gmenu design mock · units = LSS u()</span>
   </header>
 
   <main class="stage">
+   <div class="screen">
     <div class="backdrop"></div>
     <div class="scrim"></div>
 
@@ -757,11 +785,15 @@
         <span class="fb fb-frozen">FROZEN · 3 pending</span>
       </div>
     </div><!-- /card -->
+   </div><!-- /screen -->
   </main>
 
   <aside class="notes">
-    <b>Unit fidelity:</b> every size is LSS <code>u()</code> — card 340u, controls
-    16u, top bar 15u, hero 24u. Use <b>Size</b> to preview 75–130%.
+    <b>Frame:</b> client drawn to scale in LSS <code>u()</code> — measured
+    1920×1008 @ guiScale 2 = 960×504 logical = <b>539u × 283u</b>; shell is a fixed
+    <b>340u × 94% (=266u)</b> centred in it. Verified against
+    <code>screen_tabs_structure/45_tab_settings.png</code>: 63% width, 94% height, panel
+    aspect 1.28. Use <b>Client</b> for 16:9, <b>Size</b> to preview 75–130%.
     <br><b>To port:</b> flat surfaces + 1px borders (LSS has no shadow/gradient/var);
     accent underline on tabs; segmented controls replace LDLib2 Toggles.
   </aside>
