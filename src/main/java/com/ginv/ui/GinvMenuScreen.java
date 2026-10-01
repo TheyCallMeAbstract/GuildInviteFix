@@ -219,7 +219,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         Label feedbackLabel = new Label();
         feedbackLabel.setId("ginv_feedback");
         feedbackLabel.setText("");
-        feedbackLabel.textStyle(style -> style.fontSize(u(9)));
+        feedbackLabel.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
 
         GinvRoot root = new GinvRoot();
         root.setId("ginv_root");
@@ -256,17 +256,26 @@ public class GinvMenuScreen extends ModularUIScreen {
         UIElement shell = new UIElement();
         shell.addClass("ginv-shell");
         shell.layout(layout -> {
+            layout.widthPercent(100);
+            layout.gapAll(u(4));
             if (!windowed) {
                 layout.maxWidth(u(SHELL_MAX_WIDTH));
+                layout.maxHeightPercent(94);
                 layout.height(u(SHELL_MAX_HEIGHT));
+            } else {
+                layout.maxWidthPercent(100);
+                layout.maxHeightPercent(100);
             }
         });
 
         UIElement panel = new UIElement();
         panel.setId("ginv_panel");
-        // Sizing, padding, gap and surface all come from office.lss
-        // (#ginv_panel); the shell owns the responsive width/height caps.
-        panel.layout(layout -> layout.widthPercent(100));
+        // Geometry is Java-owned (D6); office.lss keeps flex/paint (#ginv_panel).
+        panel.layout(layout -> {
+            layout.widthPercent(100);
+            layout.paddingAll(u(5));
+            layout.gapAll(u(3));
+        });
         shell.addChild(panel);
         root.addChild(shell);
 
@@ -274,8 +283,24 @@ public class GinvMenuScreen extends ModularUIScreen {
         UIElement topBar = new UIElement();
         topBar.setId("ginv_topbar");
         topBar.addClass("ginv-topbar");
-        // Height/padding/gap/paint come from office.lss (.ginv-topbar, with the
-        // dark windowed override under #ginv_root.ginv-windowed).
+        // Geometry is Java-owned (D6): the screen bar is 14u with 3u side
+        // padding and 3u gaps; the windowed bar is 15u with 6/1u padding and
+        // 2u gaps. Paint stays in office.lss (.ginv-topbar / .ginv-windowed).
+        topBar.layout(layout -> {
+            layout.widthPercent(100);
+            if (windowed) {
+                layout.height(u(15));
+                layout.minHeight(u(15));
+                layout.paddingHorizontal(u(6));
+                layout.paddingVertical(u(1));
+                layout.gapAll(u(2));
+            } else {
+                layout.height(u(14));
+                layout.minHeight(u(14));
+                layout.paddingHorizontal(u(3));
+                layout.gapAll(u(3));
+            }
+        });
 
         // Left: app icon + wordmark.
         UIElement appIcon = new UIElement();
@@ -288,7 +313,7 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         Label titleLabel = new Label();
         titleLabel.setText("Guild Invite Fix");
-        titleLabel.textStyle(style -> style.fontSize(u(10)));
+        titleLabel.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         titleLabel.layout(layout -> {
             layout.flexGrow(1);
             layout.minWidth(0);
@@ -303,7 +328,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.paddingVertical(u(2));
             layout.gapAll(u(3));
         });
-        skyChip.getStateLabel().textStyle(style -> style.fontSize(u(9)));
+        skyChip.getStateLabel().textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
         skyChip.setSkyOn(SkyBlockDetector.isSkyBlock());
         topBar.addChild(skyChip);
         root.skyChip = skyChip;
@@ -315,7 +340,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.width(u(30));
             layout.height(u(11));
         });
-        viewButton.textStyle(style -> style.fontSize(u(9)));
+        viewButton.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
         viewButton.getStyle().tooltips("View options");
         topBar.addChild(viewButton);
 
@@ -385,7 +410,7 @@ public class GinvMenuScreen extends ModularUIScreen {
                 layout.width(u(16));
                 layout.height(u(12));
             });
-            popOutButton.textStyle(style -> style.fontSize(u(10)));
+            popOutButton.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
             popOutButton.getStyle().tooltips("Pop out into its own window");
             popOutButton.setOnClick(event -> popOut(popup, feedbackLabel, panel));
 
@@ -413,7 +438,10 @@ public class GinvMenuScreen extends ModularUIScreen {
         viewPopover.setId("ginv_view_popover");
         viewPopover.layout(layout -> {
             layout.positionType(TaffyPosition.ABSOLUTE);
+            layout.right(u(2));
+            layout.top(u(16));
             layout.width(u(210));
+            layout.maxHeight(u(220));
             layout.paddingAll(u(6));
             layout.gapAll(u(4));
         });
@@ -446,13 +474,24 @@ public class GinvMenuScreen extends ModularUIScreen {
         viewPopover.addChild(caption("Menu scale"));
         ToggleGroupElement scaleGroup = new ToggleGroupElement();
         scaleGroup.addClass("ginv-scale-group");
-        scaleGroup.layout(layout -> layout.flexWrap(FlexWrap.WRAP));
+        scaleGroup.layout(layout -> {
+            layout.flexWrap(FlexWrap.WRAP);
+            layout.widthPercent(100);
+            layout.paddingAll(u(1));
+            layout.gapAll(u(2));
+        });
         for (double preset : SCALE_PRESETS) {
             Toggle toggle = new Toggle();
             toggle.setId("ginv_scale_" + Math.round(preset * 100));
             toggle.setText(scalePresetLabel(preset));
-            toggle.layout(layout -> layout.height(u(14)));
-            toggle.toggleLabel(label -> label.textStyle(style -> style.fontSize(u(10))));
+            sizeGroupToggle(toggle);
+                toggle.toggleLabel(label -> {
+                    label.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+                    label.layout(layout -> {
+                        layout.paddingLeft(u(2));
+                        layout.paddingRight(u(2));
+                    });
+                });
             toggle.setOn(Math.abs(GinvDataStore.uiScale() - preset) < 1e-6, false);
             toggle.setOnToggleChanged(isOn -> {
                 if (Boolean.TRUE.equals(isOn)) {
@@ -471,13 +510,24 @@ public class GinvMenuScreen extends ModularUIScreen {
             viewPopover.addChild(caption("Mode"));
             ToggleGroupElement modeGroup = new ToggleGroupElement();
             modeGroup.addClass("ginv-mode-group");
+            modeGroup.layout(layout -> {
+                layout.widthPercent(100);
+                layout.paddingAll(u(1));
+                layout.gapAll(u(2));
+            });
             for (int i = 0; i < 2; i++) {
                 boolean wantPopup = i == 0;
                 Toggle toggle = new Toggle();
                 toggle.setId(wantPopup ? "ginv_mode_popup" : "ginv_mode_screen");
                 toggle.setText(wantPopup ? "Popup" : "Screen");
-                toggle.layout(layout -> layout.height(u(14)));
-                toggle.toggleLabel(label -> label.textStyle(style -> style.fontSize(u(10))));
+                sizeGroupToggle(toggle);
+            toggle.toggleLabel(label -> {
+                label.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+                label.layout(layout -> {
+                    layout.paddingLeft(u(2));
+                    layout.paddingRight(u(2));
+                });
+            });
                 toggle.setOn(popup == wantPopup, false);
                 toggle.setOnToggleChanged(isOn -> {
                     if (Boolean.TRUE.equals(isOn)) {
@@ -527,8 +577,10 @@ public class GinvMenuScreen extends ModularUIScreen {
         // Body region owns the vertical grow (office.lss .ginv-body) so tall
         // tab content scrolls instead of pushing the status bar off-card.
         TabView tabView = new TabView();
+        tabView.layout(layout -> layout.widthPercent(100));
         UIElement body = new UIElement();
         body.addClass("ginv-body");
+        body.layout(layout -> layout.gapAll(u(4)));
         body.addChild(tabView);
         panel.addChild(body);
 
@@ -548,13 +600,20 @@ public class GinvMenuScreen extends ModularUIScreen {
         Label statusLabel = new Label();
         statusLabel.setId("ginv_status");
         statusLabel.setText(statusText());
-        statusLabel.textStyle(style -> style.fontSize(u(9)));
+        statusLabel.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
 
         UIElement statusBar = new UIElement();
         statusBar.setId("ginv_statusbar");
-        // Row/height/padding/gap/paint come from office.lss (.ginv-statusbar).
         statusBar.addClass("ginv-statusbar");
-        // Surface comes from office.lss (#ginv_statusbar); no inline paint.
+        // Geometry is Java-owned (D6); office.lss keeps row/flex, paint and
+        // the overflow guard (clip: scissor).
+        statusBar.layout(layout -> {
+            layout.widthPercent(100);
+            layout.height(u(13));
+            layout.minHeight(u(13));
+            layout.paddingHorizontal(u(4));
+            layout.gapAll(u(4));
+        });
         statusLabel.layout(layout -> {
             layout.flexGrow(1);
             layout.minWidth(0);
@@ -597,8 +656,15 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         // State banner: dot + RUNNING/STOPPED · N pending, live every tick.
         UIElement banner = new UIElement();
-        // Row/height/padding/gap/paint come from office.lss (.ginv-banner).
         banner.addClass("ginv-banner");
+        // Geometry is Java-owned (D6); office.lss keeps row/flex and paint.
+        banner.layout(layout -> {
+            layout.widthPercent(100);
+            layout.height(u(16));
+            layout.minHeight(u(16));
+            layout.paddingHorizontal(u(6));
+            layout.gapAll(u(3));
+        });
         UIElement dot = new UIElement();
         dot.layout(layout -> {
             layout.width(u(6));
@@ -609,7 +675,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         root.bannerDot = dot;
         Label bannerLabel = new Label();
         bannerLabel.setId("ginv_banner");
-        bannerLabel.textStyle(style -> style.fontSize(u(10)).textShadow(true));
+        bannerLabel.textStyle(style -> style.fontSize(u(10)).textShadow(true).adaptiveHeight(true));
         bannerLabel.layout(layout -> {
             layout.flexGrow(1);
             layout.minWidth(0);
@@ -630,7 +696,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.widthPercent(100);
             layout.height(u(24));
         });
-        hero.textStyle(style -> style.fontSize(u(11)).textShadow(true));
+        hero.textStyle(style -> style.fontSize(u(11)).textShadow(true).adaptiveHeight(true));
         // Red STOP ⇄ green RESUME surfaces come from the hero state classes in
         // office.lss; screenTick flips them when freeze toggles (B/§4).
         hero.addClass("ginv-hero");
@@ -664,7 +730,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         queueNames.setId("ginv_queue_names");
         queueNames.setText("Queue");
         queueNames.layout(layout -> layout.height(u(16)));
-        queueNames.textStyle(style -> style.fontSize(u(10)));
+        queueNames.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         queueNames.setOnClick(event -> {
             Set<String> parsed = GinvCommand.parseTargets(nameField.getValue());
             if (parsed.isEmpty()) {
@@ -691,7 +757,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         queueLevel.setId("ginv_queue_level");
         queueLevel.setText("Queue ≥");
         queueLevel.layout(layout -> layout.height(u(16)));
-        queueLevel.textStyle(style -> style.fontSize(u(10)));
+        queueLevel.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         queueLevel.setOnClick(event -> {
             int minLevel;
             try {
@@ -743,7 +809,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         clearButton.setId("ginv_clear");
         clearButton.setText("Clear");
         clearButton.layout(layout -> layout.height(u(16)));
-        clearButton.textStyle(style -> style.fontSize(u(10)));
+        clearButton.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         clearButton.getStyle().tooltips("Clear all targets and pending invites");
         clearButton.setOnClick(event -> {
             GinvCommand.clearTargets();
@@ -779,7 +845,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         Button addButton = new Button();
         addButton.setText("Add");
         addButton.layout(layout -> layout.height(u(16)));
-        addButton.textStyle(style -> style.fontSize(u(10)));
+        addButton.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         addButton.setOnClick(event -> {
             String raw = nameField.getValue() == null ? "" : nameField.getValue().trim();
             if (raw.isEmpty()) return;
@@ -846,7 +912,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.flexGrow(1);
             layout.minWidth(0);
         });
-        applyButton.textStyle(style -> style.fontSize(u(10)));
+        applyButton.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         applyButton.setOnClick(event -> {
             try {
                 int min = Integer.parseInt(minDelayField.getValue().trim());
@@ -931,15 +997,47 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.gapColumn(u(4));
             layout.widthPercent(100);
             layout.height(height);
+            layout.minHeight(u(16));
         });
         return row;
+    }
+
+    /**
+     * Segmented Toggle sizing (scale/mode groups): the Toggle is
+     * {@code [aspect-1 button][flex-1 label]}, so the label's zero flex-basis
+     * collapses each Toggle to its square while it still shares the row.
+     * Geometry is Java-owned (D6).
+     */
+    private static void sizeGroupToggle(Toggle toggle) {
+        toggle.layout(layout -> {
+            layout.flexGrow(1);
+            layout.flexShrink(1);
+            layout.flexBasis(0);
+            layout.minWidth(0);
+            layout.height(u(14));
+            layout.minHeight(u(14));
+            layout.paddingAll(0);
+            layout.alignItems(AlignItems.STRETCH);
+        });
+        // Toggle's button ships with an inline aspectRatio(1); override it so
+        // the transparent click target fills the whole segment cell.
+        toggle.toggleButton(button -> button.layout(layout -> {
+            layout.positionType(TaffyPosition.ABSOLUTE);
+            layout.top(0);
+            layout.left(0);
+            layout.right(0);
+            layout.bottom(0);
+            layout.widthPercent(100);
+            layout.heightPercent(100);
+            layout.aspectRatioAuto();
+        }));
     }
 
     private static Label sectionTitle(String text) {
         Label label = new Label();
         label.setText(text);
         label.addClass("ginv-section");
-        label.textStyle(style -> style.fontSize(u(10)));
+        label.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         return label;
     }
 
@@ -947,7 +1045,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         Label label = new Label();
         label.setText(text);
         label.addClass("ginv-caption");
-        label.textStyle(style -> style.fontSize(u(9)));
+        label.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
         return label;
     }
 
@@ -955,7 +1053,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         Label label = new Label();
         label.setText(text);
         label.addClass("ginv-body-text");
-        label.textStyle(style -> style.fontSize(u(10)));
+        label.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         return label;
     }
 
@@ -963,7 +1061,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         Label dash = new Label();
         dash.setText("-");
         dash.addClass("ginv-caption");
-        dash.textStyle(style -> style.fontSize(u(10)));
+        dash.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         return dash;
     }
 
@@ -1052,7 +1150,7 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         Label nameLabel = new Label();
         nameLabel.setText(name);
-        nameLabel.textStyle(style -> style.fontSize(u(10)));
+        nameLabel.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         nameLabel.layout(layout -> {
             layout.flexGrow(1);
             layout.minWidth(0);
@@ -1068,7 +1166,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             Label countLabel = new Label();
             countLabel.setText(count);
             countLabel.addClass("ginv-muted");
-            countLabel.textStyle(style -> style.fontSize(u(9)));
+            countLabel.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
             row.addChildren(countLabel);
         }
 
@@ -1119,10 +1217,10 @@ public class GinvMenuScreen extends ModularUIScreen {
         if (level == null) {
             badge.setText("—");
             badge.addClass("ginv-muted");
-            badge.textStyle(style -> style.fontSize(u(9)));
+            badge.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
         } else {
             badge.setText("[" + level.value() + "]");
-            badge.textStyle(style -> style.fontSize(u(9)).textColor(level.color()));
+            badge.textStyle(style -> style.fontSize(u(9)).textColor(level.color()).adaptiveHeight(true));
         }
         badge.layout(layout -> layout.width(u(16)));
         badge.getStyle().tooltips("Guild level");
@@ -1138,7 +1236,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             // idle buttons keep the sheet's default surface and ink.
             button.addClass(activeClass);
         }
-        button.text.textStyle(style -> style.fontSize(u(10)));
+        button.text.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         button.layout(layout -> {
             layout.width(u(14));
             layout.height(u(16));
@@ -1160,7 +1258,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         Label label = new Label();
         label.setText(text);
         label.addClass("ginv-empty");
-        label.textStyle(style -> style.fontSize(u(9)));
+        label.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
         return label;
     }
 
@@ -1242,7 +1340,7 @@ public class GinvMenuScreen extends ModularUIScreen {
 
             Label nameLabel = new Label();
             nameLabel.setText(name);
-            nameLabel.textStyle(style -> style.fontSize(u(10)));
+            nameLabel.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
             nameLabel.layout(layout -> {
                 layout.flexGrow(1);
                 layout.minWidth(0);

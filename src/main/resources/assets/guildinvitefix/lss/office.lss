@@ -6,8 +6,8 @@
 // Precedence is specificity: this file only uses #ginv_* ids and .ginv-*
 // classes (plus #ginv_root-anchored internals), which out-specify dusk.lss
 // type rules. Inline layout() from Java still wins over this sheet
-// (StyleOrigin.INLINE > STYLESHEET); the sheet owns shell/region geometry and
-// Java keeps only the scale-bearing shell max-width + font sizes.
+// (StyleOrigin.INLINE > STYLESHEET); the sheet owns paint and unit-free
+// flex/alignment, while Java owns ALL scale-bearing geometry via u() (D6).
 //
 // TOKEN BLOCK — dusk-derived, every value 8-digit hex, alpha first.
 // LSS hex is AARRGGBB; ColorUtils.parseColor turns 6-digit values fully
@@ -43,9 +43,12 @@
 // faint/raised 4.4:1, accent/surface 6.0:1, danger/surface 4.9:1,
 // success/surface 5.6:1, warn/surface 8.1:1, text/sunken 15.1:1.
 //
-// SIZE DISCIPLINE: geometry lives here. Radii 3/5/7, border 1, control
-// height 16; LSS corner-radius order is BL, BR, TR, TL. Java keeps u() only
-// for the shell max-width token and font sizes.
+// SIZE DISCIPLINE (D6): the sheet is unit-free. It owns paint, flex layout,
+// alignment and the clip guard — nothing else. Every scale-bearing dimension
+// (width/height/max-*/padding/gap/font-size) lives in Java via u(), so the
+// 75–200% preset and the autoscale fit scale the whole card. The only sizing
+// declarations here are the structural zeros (min-width: 0 / min-height: 0)
+// that let flex children shrink instead of overflowing.
 // ===========================================================================
 
 // --- typography -------------------------------------------------------------
@@ -91,8 +94,6 @@
 
 // --- root: full-viewport centering column -----------------------------------
 #ginv_root {
-  width: 100%;
-  height: 100%;
   flex-direction: column;
   justify-content: center;
   align-items: center;
@@ -111,35 +112,26 @@
 }
 
 // --- shell: centered responsive card ----------------------------------------
-// max-width defaults to the authored 340; Java overrides it inline with
-// u(SHELL_MAX_WIDTH) so the 75–200% preset still scales the card.
+// Geometry (max-width, max-height 94%, height) is Java-owned via u() so the
+// 75–200% preset still scales the card.
 #ginv_root .ginv-shell {
-  width: 100%;
-  max-width: 340;
-  max-height: 94%;
   min-height: 0;
   align-self: center;
   flex-direction: column;
-  gap-all: 4;
   background: rect(#FF171A21, 7, 1, #16FFFFFF);
 }
 
 #ginv_root.ginv-windowed .ginv-shell {
-  max-width: 100%;
-  max-height: 100%;
   flex-grow: 1;
   flex-shrink: 1;
 }
 
 // --- card / regions ---------------------------------------------------------
 #ginv_root #ginv_panel {
-  width: 100%;
   flex-grow: 1;
   flex-shrink: 1;
   min-height: 0;
   flex-direction: column;
-  padding-all: 5;
-  gap-all: 3;
   position: relative;
   background: rect(#FF171A21, 7, 1, #16FFFFFF);
 }
@@ -149,38 +141,23 @@
 #ginv_root .ginv-statusbar {
   flex-direction: row;
   align-items: center;
-  width: 100%;
   flex-shrink: 0;
 }
 
 #ginv_root .ginv-topbar {
-  height: 14;
-  min-height: 14;
   flex-shrink: 0;
-  padding-horizontal: 3;
-  gap-all: 3;
   background: rect(#FF212632, 5, 1, #16FFFFFF);
 }
 
 #ginv_root.ginv-windowed .ginv-topbar {
-  height: 15;
-  min-height: 15;
   flex-shrink: 0;
-  padding-horizontal: 6;
-  padding-vertical: 1;
-  gap-all: 2;
   background: rect(#FF0F1116, 0, 1, #FF2EFFFFFF);
 }
 
 #ginv_root .ginv-banner {
   flex-direction: row;
   align-items: center;
-  width: 100%;
-  height: 16;
-  min-height: 16;
   flex-shrink: 0;
-  padding-horizontal: 6;
-  gap-all: 3;
   background: rect(#3D7C8CFF, 5);
 }
 
@@ -194,51 +171,32 @@
 
 // Body wrapper: owns the vertical grow, lets tall content scroll.
 #ginv_root .ginv-body {
-  width: 100%;
   flex-grow: 1;
   flex-shrink: 1;
   min-height: 0;
   flex-direction: column;
-  gap-all: 4;
 }
 
 #ginv_root .ginv-body tab-view {
-  width: 100%;
   flex-grow: 1;
   flex-shrink: 1;
   min-height: 0;
 }
 
 #ginv_root .ginv-statusbar {
-  height: 13;
-  min-height: 13;
   flex-shrink: 0;
-  padding-horizontal: 4;
-  gap-all: 4;
   background: rect(#FF0B0D11, 5, 1, #16FFFFFF);
   clip: scissor;
 }
 
 // --- top-bar pieces ---------------------------------------------------------
 #ginv_root .ginv-app-icon {
-  width: 10;
-  height: 10;
-  min-width: 10;
-  min-height: 10;
   flex-shrink: 0;
 }
 
 #ginv_root .ginv-title {
   flex-grow: 1;
   min-width: 0;
-}
-
-#ginv_root .ginv-view-button {
-  width: 30;
-  height: 11;
-  min-width: 30;
-  min-height: 11;
-  flex-shrink: 0;
 }
 
 #ginv_root #ginv_view_menu {
@@ -293,9 +251,6 @@
 #ginv_root .ginv-row {
   flex-direction: row;
   align-items: center;
-  gap-column: 4;
-  width: 100%;
-  min-height: 16;
   min-width: 0;
 }
 
@@ -307,16 +262,11 @@
 #ginv_root .ginv-ctl {
   flex-direction: row;
   align-items: center;
-  gap-column: 4;
-  width: 165;
   flex-shrink: 0;
 }
 
 #ginv_root .ginv-tab-column {
-  width: 100%;
-  height: 100%;
   flex-direction: column;
-  gap-row: 4;
 }
 
 // Segmented rows (Menu scale presets, Popup|Screen). LDLib2 Toggle is
@@ -327,9 +277,6 @@
 #ginv_root .ginv-mode-group {
   flex-direction: row;
   flex-wrap: wrap;
-  gap-all: 2;
-  width: 100%;
-  padding-all: 1;
   background: rect(#FF0B0D11, 4, 1, #16FFFFFF);
 }
 
@@ -338,11 +285,7 @@
   position: relative;
   flex-grow: 1;
   flex-shrink: 1;
-  flex-basis: 0;
   min-width: 0;
-  height: 14;
-  min-height: 14;
-  padding-all: 0;
   align-items: stretch;
   background: rect(#FF212632, 4, 1, #16FFFFFF);
 }
@@ -357,10 +300,6 @@
 #ginv_root .ginv-scale-group .__toggle_button__,
 #ginv_root .ginv-mode-group .__toggle_button__ {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
   z-index: 2;
   base-background: empty;
   hover-background: rect(#16FFFFFF);
@@ -377,18 +316,11 @@
   position: relative;
   z-index: 1;
   margin-left: 0;
-  padding-left: 2;
-  padding-right: 2;
   text-color: #FFE7EAF2;
 }
 
 // --- hero -------------------------------------------------------------------
-#ginv_root .ginv-hero {
-  width: 100%;
-  height: 24;
-  min-height: 24;
-  flex-shrink: 0;
-}
+// Hero size (width/height) is Java-owned via u().
 
 // Hero: red STOP while running, green RESUME while frozen (id+class wins over
 // the generic button rule). Hover/pressed are pre-shaded variants.
@@ -413,10 +345,6 @@
   position: relative;
   flex-direction: row;
   align-items: center;
-  padding-left: 12;
-  padding-right: 4;
-  padding-vertical: 2;
-  gap-all: 0;
   background: rect(#FF212632, 7, 1, #16FFFFFF);
   flex-shrink: 0;
 }
@@ -442,15 +370,12 @@
 #ginv_root .ginv-dot {
   position: absolute;
   left: 0;
-  width: 0;
-  height: 0;
 }
 
-// The banner dot is a real flex child: keep it in flow at its authored size.
+// The banner dot is a real flex child: keep it in flow at its authored size
+// (Java sets the 6×6 u() geometry inline).
 #ginv_root .ginv-banner .ginv-dot {
   position: relative;
-  width: 6;
-  height: 6;
 }
 
 #ginv_root .ginv-dot.ginv-dot-on {
@@ -462,23 +387,17 @@
 }
 
 // --- View popover -----------------------------------------------------------
+// Popover anchor/size (right/top/width/max-height/padding/gap) is Java-owned.
 #ginv_root #ginv_view_popover,
 #ginv_root .ginv-popover {
   position: absolute;
-  right: 2;
-  top: 16;
-  width: 210;
-  max-height: 220;
   flex-direction: column;
-  padding-all: 6;
-  gap-all: 4;
   z-index: 1;
   clip: scissor;
   background: rect(#FF212632, 7, 1, #2EFFFFFF);
 }
 
 #ginv_root .ginv-popover-scroll {
-  width: 100%;
   flex-grow: 1;
   flex-shrink: 1;
   min-height: 0;
