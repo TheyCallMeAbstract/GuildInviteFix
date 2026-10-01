@@ -114,7 +114,10 @@ Two layers:
 ./gradlew runClient -PldTest=mod:guildinvitefix
 ```
 
-The report and screenshots land in `build/reports/lduitest/`. Optional
+The report and screenshots land in `build/reports/lduitest/`:
+`report.json` (per-step results, errors and capture references), and one PNG
+per `.screenshot()` step — plus one for any failed step — under
+`screenshots/<scenario>/<step>_<label>.png`. Optional
 flags: `-PldTestHeadless` (synthetic input, hidden window),
 `-PldTestGuiScale=<n>`, `-PldTestWindow=<WxH>`, `-PldTestKeepOpen`.
 Selection grammar: `all`, `<name>`, `a,b,c`, `group:guildinvitefix`,
@@ -132,6 +135,11 @@ invite route can never activate in production.
   (`ldlib2_version`), and the artifact is not in `mavenLocal()`. Publish the
   fork release for that version, or build the fork locally
   (`:fabric:publishToMavenLocal`) as described above.
+- **`Selection '...' matched no scenarios`** — the run aborts before any
+  screenshot is taken. Check the expression against the grammar above;
+  `mod:<id>` matches the scenario's *package* (needs a `.guildinvitefix.`
+  segment), `group:` matches the annotation group, and a bare term is an
+  annotation name (`menu_open_regression`, …).
 
 ## License
 

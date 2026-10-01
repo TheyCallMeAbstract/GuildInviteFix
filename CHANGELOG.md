@@ -86,6 +86,28 @@
 - Fabric API bumped to 0.155.3+26.1.2
 - Invite delay range (default 220–720 ms) is now configurable from the menu
 
+### Fixed
+- The documented GUI-suite command `-PldTest=mod:guildinvitefix` matched no
+  scenarios and aborted before taking any screenshot: LDLib2 resolves `mod:`
+  against the scenario's *package* (`.guildinvitefix.`), and the scenarios
+  lived under `com.ginv.*`. They now live under
+  `com.guildinvitefix.testing.scenarios`, and a guard test
+  (`ScenarioSelectionTest`) fails the build if the documented `mod:`/`group:`
+  selections ever stop matching them
+- Scenario *discovery* in dev runs: LDLib2's classpath scan only inspects
+  directories containing a `com/lowdragmc/lowdraglib2/` subtree, which Loom's
+  `build/classes/java/main` lacks, so the six annotated scenarios were never
+  registered (only LDLib2's own 27 were). The build now creates that marker
+  directory after `classes`; release jars are unaffected (they are scanned via
+  their own root path)
+- `popout_stability_redock` scenario gestures: LDLib2 `Button` fires `onClick`
+  on mouse *press*, and both pop-out and re-dock close their own context
+  mid-gesture (screen / window), so an atomic click's release step threw
+  against a vanished target. The scenario now presses at the element's
+  remembered centre and releases without re-resolving the selector (the screen
+  driver no-ops on a closed screen; the window driver refuses one, so the
+  re-dock press is the whole gesture)
+
 ## [1.0.0] - 2026-07-31
 
 ### Added

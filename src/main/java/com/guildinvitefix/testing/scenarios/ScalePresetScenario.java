@@ -1,4 +1,4 @@
-package com.ginv.testing.scenarios;
+package com.guildinvitefix.testing.scenarios;
 
 import com.ginv.data.GinvDataStore;
 import com.ginv.ui.GinvMenuScreen;

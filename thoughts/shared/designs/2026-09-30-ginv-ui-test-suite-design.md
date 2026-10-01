@@ -74,7 +74,7 @@ CI exit codes).
 ## Architecture
 
 ```
-scenarios (com.ginv.testing.scenarios, DEV_ONLY)
+scenarios (com.guildinvitefix.testing.scenarios, DEV_ONLY)
     │  requestOpen / openScreen / WindowInput
     ▼
 GmenuCommand ──► GinvMenuScreen / GinvMenuWindow        (UI under test)
@@ -114,7 +114,7 @@ client needed.
   `redock`, `maximize`, `win_close`, `pin`; tabs `ginv_tab_<slug>` and panes
   `ginv_pane_<slug>` (plus shared classes `ginv_tab` / `ginv_pane`); scale
   toggles `ginv_scale_<percent>`.
-- **`com.ginv.testing.scenarios.*`** — six `UIScenario` implementations,
+- **`com.guildinvitefix.testing.scenarios.*`** — six `UIScenario` implementations,
   `@LDLRegisterClient(registry = UIScenario.REGISTRY, group =
   "guildinvitefix", environment = DEV_ONLY)`, common options: `requiresWorld(
   true)`, `guiScale(2)`, `tags("ui","menu")`, `defaultSettleMs(50)`.

@@ -94,6 +94,24 @@ loom {
 	}
 }
 
+// LDLib2 scenario discovery in dev (supports the uitest wiring above).
+// LDLib2's annotation scanner walks each mod's root paths, then falls back to
+// classpath directories — but only those containing a com/lowdragmc/lowdraglib2/
+// marker package, an upstream heuristic that in practice only ever matches
+// LDLib2's own dev output. Loom hands our compiled classes to the JVM as
+// build/classes/java/main (no marker), so the scan skips them entirely and
+// `-PldTest=mod:guildinvitefix` selects nothing even though everything
+// compiles. Creating the empty marker after compilation makes our class output
+// dir eligible for the scan, keeping the @LDLRegisterClient annotations the
+// single source of truth (release jars are scanned via their own root path, so
+// production behaviour is unchanged either way).
+def ldlib2ScanMarker = layout.buildDirectory.dir('classes/java/main/com/lowdragmc/lowdraglib2').get().asFile
+tasks.named('classes') {
+	doLast {
+		ldlib2ScanMarker.mkdirs()
+	}
+}
+
 processResources {
 	def version = project.version
 	inputs.property "version", version

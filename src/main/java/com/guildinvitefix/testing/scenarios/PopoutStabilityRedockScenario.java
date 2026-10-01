@@ -1,12 +1,14 @@
-package com.ginv.testing.scenarios;
+package com.guildinvitefix.testing.scenarios;
 
 import com.ginv.ui.GinvMenuScreen;
 import com.ginv.ui.GinvMenuWindow;
 import com.lowdragmc.lowdraglib2.registry.RegistrationEnvironment;
 import com.lowdragmc.lowdraglib2.registry.annotation.LDLRegisterClient;
+import com.lowdragmc.lowdraglib2.uitest.ElementBounds;
 import com.lowdragmc.lowdraglib2.uitest.ScenarioBuilder;
 import com.lowdragmc.lowdraglib2.uitest.ScenarioOptions;
 import com.lowdragmc.lowdraglib2.uitest.UIScenario;
+import com.lowdragmc.lowdraglib2.uitest.input.Keys;
 
 /**
  * The pop-out regression scenario: pop the menu into an OS window, keep it
@@ -42,7 +44,22 @@ public class PopoutStabilityRedockScenario implements UIScenario {
                 .awaitModularUI()
                 .awaitElement("#ginv_popout")
                 .screenshot("before_popout")
-                .click("#ginv_popout")
+                .hover("#ginv_popout")
+                // Button.onClick fires on MOUSE_DOWN (onMouseDown → popOut →
+                // mc.setScreen(null)), so click()'s release step would re-resolve
+                // "#ginv_popout" against a screen that no longer exists. Press at
+                // the element's centre and release at the same remembered point —
+                // mouseUp is a no-op once the screen is gone, but still lands
+                // correctly on the button if the pop-out was refused.
+                .step("press #ginv_popout", ctx -> {
+                    ElementBounds bounds = ctx.el("#ginv_popout").bounds();
+                    ctx.put("popout_pt", bounds);
+                    ctx.input().mouseDown(bounds.centerX(), bounds.centerY(), Keys.MOUSE_LEFT);
+                })
+                .step("release #ginv_popout", ctx -> {
+                    ElementBounds bounds = ctx.get("popout_pt");
+                    ctx.input().mouseUp(bounds.centerX(), bounds.centerY(), Keys.MOUSE_LEFT);
+                })
                 .waitUntil("the pop-out window opened", ctx -> GinvMenuWindow.active() != null)
                 .step("remember the window instance", ctx -> ctx.put("popout", GinvMenuWindow.active()))
                 .ticks(12)
@@ -53,14 +70,17 @@ public class PopoutStabilityRedockScenario implements UIScenario {
                     ctx.screenshotSurface("popout_window", window.surface());
                 })
                 // Re-dock through the window's own input queue — one primitive
-                // per step, as the queue drains once per frame.
+                // per step, as the queue drains once per frame. The press is the
+                // whole gesture: Button.onClick fires on MOUSE_DOWN, which
+                // re-docks and closes the window, and WindowInput refuses a
+                // closed window ("nothing would drain its events") — so there is
+                // no release left to post.
                 .step("aim at re-dock", ctx -> {
                     GinvMenuWindow window = GinvMenuWindow.active();
                     var target = ctx.in(window.getModularUI(), "#ginv_redock").one();
                     ctx.input(window).moveTo(target.element());
                 })
                 .step("press re-dock", ctx -> ctx.input(GinvMenuWindow.active()).mouseDown(0))
-                .step("release re-dock", ctx -> ctx.input(GinvMenuWindow.active()).mouseUp(0))
                 .awaitScreen(GinvMenuScreen.class)
                 .awaitModularUI()
                 .checkExists("#ginv_panel")
