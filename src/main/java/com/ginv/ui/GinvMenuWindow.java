@@ -34,29 +34,43 @@ public class GinvMenuWindow extends ModularUIWindow {
     /** Maximum cursor travel between the two presses of a double-click. */
     private static final double DOUBLE_CLICK_SLOP = 3;
 
+    // Edge bits, mirroring ModularUIWindow's private constants. The parent
+    // dispatches beginGesture()/applyGesture() virtually, so a subclass can
+    // mirror the resize state it cannot read.
+    private static final int WINDOW_EDGE_LEFT = 1;
+    private static final int WINDOW_EDGE_RIGHT = 1 << 1;
+    private static final int WINDOW_EDGE_TOP = 1 << 2;
+    private static final int WINDOW_EDGE_BOTTOM = 1 << 3;
+
     /** The menu window tracked for focus/single-instance purposes. */
     @Nullable
     private static GinvMenuWindow tracked;
-
-    /** Which in-game mode this window was popped out of (popup vs screen). */
-    private final boolean popupOrigin;
 
     private long lastDragPressAt;
     private double lastDragX;
     private double lastDragY;
     private boolean swallowNextRelease;
 
-    public GinvMenuWindow(ModularUI modularUI, String title, boolean popupOrigin) {
-        super(modularUI, title);
-        this.popupOrigin = popupOrigin;
-    }
+    // --- constrained-resize mirror (set from GinvMenuScreen.popOut) ---
+    /** Opening width; also the resize floor. */
+    private int reflowMinW;
+    /** Opening height; also the resize floor. */
+    private int reflowMinH;
+    /** Locked width:height ratio, {@code reflowMinW / reflowMinH}. */
+    private double reflowAspect;
+    /** Grabbed edge mask for the current resize gesture; 0 when not resizing. */
+    private int reflowEdges;
+    private int reflowGrabX;
+    private int reflowGrabY;
+    private int reflowGrabW;
+    private int reflowGrabH;
+    private double reflowGrabGlobalX;
+    private double reflowGrabGlobalY;
+    /** Whether a usable base has been set; the constraint is inert without one. */
+    private boolean reflowBaseSet;
 
-    /**
-     * The mode the window was popped out of, so the re-dock button can return
-     * the menu to exactly the screen it left (popup overlay or full screen).
-     */
-    public boolean popupOrigin() {
-        return popupOrigin;
+    public GinvMenuWindow(ModularUI modularUI, String title) {
+        super(modularUI, title);
     }
 
     // ----------------------------------------------------------- single instance
@@ -85,6 +99,49 @@ public class GinvMenuWindow extends ModularUIWindow {
         return true;
     }
 
+    // -------------------------------------------------------- resize constraint
+
+    /**
+     * Sets the window's opening configuration as the resize base: both minima
+     * and the locked aspect ratio. Called by {@code GinvMenuScreen.popOut}
+     * right after the window is built, so a resize can only zoom the window
+     * upward from a known-good layout. A degenerate pair leaves the
+     * constraint inert ({@code applyGesture} then defers to {@code super}).
+     */
+    public void setReflowBase(int w, int h) {
+        if (w > 0 && h > 0) {
+            reflowMinW = w;
+            reflowMinH = h;
+            reflowAspect = (double) w / h;
+            reflowBaseSet = true;
+        } else {
+            reflowBaseSet = false;
+        }
+    }
+
+    /**
+     * Scales the resize base by {@code ratio}, keeping the aspect ratio, so
+     * the floor tracks a programmatic window resize (a scale-preset change).
+     * No-op until {@link #setReflowBase} has run or for a non-positive ratio.
+     */
+    public void scaleReflowBase(double ratio) {
+        if (!reflowBaseSet || ratio <= 0) return;
+        reflowMinW = (int) Math.round(reflowMinW * ratio);
+        reflowMinH = (int) Math.round(reflowMinH * ratio);
+    }
+
+    /**
+     * Carries this window's resize base over to a freshly rebuilt one
+     * ({@code GinvMenuScreen.rebuildActiveWindow} replaces the instance while
+     * keeping the geometry, so the new window must keep the floor too).
+     */
+    void copyReflowBaseFrom(GinvMenuWindow other) {
+        reflowMinW = other.reflowMinW;
+        reflowMinH = other.reflowMinH;
+        reflowAspect = other.reflowAspect;
+        reflowBaseSet = other.reflowBaseSet;
+    }
+
     // -------------------------------------------------------- title-bar gesture
 
     /**
@@ -97,6 +154,7 @@ public class GinvMenuWindow extends ModularUIWindow {
      */
     @Override
     protected boolean beginGesture() {
+        reflowEdges = 0;
         var current = window();
         double x = current.getCursorX();
         double y = current.getCursorY();
@@ -115,10 +173,56 @@ public class GinvMenuWindow extends ModularUIWindow {
             return true; // the press is consumed; no move starts
         }
 
+        // Mirror the parent's resize gesture. The parent keeps its edge mask
+        // and grab rect private, so capture our own copy from the same inputs;
+        // applyGesture() then feeds them to the aspect-locked reflow. Only
+        // when not maximized — a maximized window reports no edges, and that
+        // is what keeps maximize/restore out of the constraint.
+        if (!current.isMaximized()) {
+            int edges = 0;
+            if (x <= RESIZE_BORDER) edges |= WINDOW_EDGE_LEFT;
+            if (x >= width - RESIZE_BORDER) edges |= WINDOW_EDGE_RIGHT;
+            if (y <= RESIZE_BORDER) edges |= WINDOW_EDGE_TOP;
+            if (y >= height - RESIZE_BORDER) edges |= WINDOW_EDGE_BOTTOM;
+            if (edges != 0) {
+                var global = current.queryGlobalCursor();
+                reflowEdges = edges;
+                reflowGrabX = current.getPositionX();
+                reflowGrabY = current.getPositionY();
+                reflowGrabW = width;
+                reflowGrabH = height;
+                reflowGrabGlobalX = global[0];
+                reflowGrabGlobalY = global[1];
+            }
+        }
+
         lastDragPressAt = now;
         lastDragX = x;
         lastDragY = y;
         return super.beginGesture();
+    }
+
+    /**
+     * Applies an in-flight resize through {@link WindowReflow}: the window
+     * zooms on its opening aspect line, anchored at the opposite edge, and
+     * never drops below the opening size. Moves, and every window without a
+     * reflow base, keep the stock {@code super} behavior.
+     */
+    @Override
+    protected void applyGesture() {
+        if (reflowBaseSet && reflowEdges != 0) {
+            var current = window();
+            var global = current.queryGlobalCursor();
+            int dx = (int) Math.round(global[0] - reflowGrabGlobalX);
+            int dy = (int) Math.round(global[1] - reflowGrabGlobalY);
+            int[] rect = WindowReflow.resize(reflowEdges, reflowGrabX, reflowGrabY,
+                    reflowGrabW, reflowGrabH, dx, dy,
+                    reflowMinW, reflowMinH, reflowAspect);
+            current.setPosition(rect[0], rect[1]);
+            current.setSize(rect[2], rect[3]);
+            return;
+        }
+        super.applyGesture();
     }
 
     // -------------------------------------------------------------------- input

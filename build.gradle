@@ -57,6 +57,9 @@ dependencies {
 
 test {
 	useJUnitPlatform()
+	// ThemeSheetInvariantsTest reads the generated sheets; make sure the
+	// template has been expanded before the test source set runs.
+	dependsOn 'generateThemeSheets'
 }
 
 // UITest harness wiring (LDLib2's scenario runner). Off unless -PldTest is
@@ -119,6 +122,73 @@ processResources {
 	filesMatching("fabric.mod.json") {
 		expand "version": version
 	}
+}
+
+// Generated theme sheets (Stage 1). src/theme/office.lss.tmpl plus per-theme
+// token tables under src/theme/tokens/ expand at build time into
+// office-<id>.lss, which processResources ships inside the mod jar. LDLib2 LSS
+// has no runtime var()/alias, so the palette is materialized per theme here.
+// The template and token tables live outside src/main/resources, so they never
+// enter the jar. Output must stay unit-free (D6): only paint/geometry-free
+// declarations live in the sheet; Java owns all u() geometry.
+def generatedThemeSheetsDir = layout.buildDirectory.dir('generated/themeSheets')
+
+def generateThemeSheets = tasks.register('generateThemeSheets') {
+	description = 'Expands office.lss.tmpl per theme token table into office-<id>.lss.'
+	group = 'build'
+
+	def templateFile = file('src/theme/office.lss.tmpl')
+	def tokensDir = file('src/theme/tokens')
+	def outputDir = generatedThemeSheetsDir
+
+	inputs.file(templateFile).withPropertyName('template')
+	inputs.dir(tokensDir).withPropertyName('tokens')
+	outputs.dir(outputDir).withPropertyName('sheets')
+
+	doLast {
+		def template = templateFile.getText('UTF-8')
+		def outLssDir = new File(outputDir.get().asFile, 'assets/guildinvitefix/lss')
+		outLssDir.mkdirs()
+
+		def tokenFiles = (tokensDir.listFiles({ f -> f.name.endsWith('.tokens') } as FileFilter) ?: []) as List
+		if (tokenFiles.isEmpty()) {
+			throw new GradleException("generateThemeSheets: no *.tokens files under ${tokensDir}")
+		}
+		tokenFiles.sort { it.name }
+
+		tokenFiles.each { tokenFile ->
+			def tokens = [:]
+			tokenFile.eachLine('UTF-8') { line ->
+				def trimmed = line.trim()
+				if (trimmed.isEmpty() || trimmed.startsWith('#') || trimmed.startsWith('//')) {
+					return
+				}
+				def matcher = trimmed =~ /^([A-Za-z0-9_]+)\s*=\s*(\S+)$/
+				if (!matcher.matches()) {
+					throw new GradleException("generateThemeSheets: malformed token line in ${tokenFile.name}: '${line}'")
+				}
+				tokens[matcher[0][1]] = matcher[0][2]
+			}
+
+			def expanded = template.replaceAll(/\$([A-Za-z][A-Za-z0-9_]*)/) { full, key ->
+				if (!tokens.containsKey(key)) {
+					throw new GradleException("generateThemeSheets: undefined token '\$${key}' in ${templateFile.name} for theme '${tokenFile.name}'")
+				}
+				tokens[key]
+			}
+			if (expanded.contains('$')) {
+				throw new GradleException("generateThemeSheets: unresolved '\$' remains after expanding ${tokenFile.name}")
+			}
+
+			def themeId = tokenFile.name.substring(0, tokenFile.name.length() - '.tokens'.length())
+			new File(outLssDir, "office-${themeId}.lss").setText(expanded, 'UTF-8')
+		}
+	}
+}
+
+tasks.named('processResources') {
+	dependsOn generateThemeSheets
+	from generatedThemeSheetsDir
 }
 
 tasks.withType(JavaCompile).configureEach {

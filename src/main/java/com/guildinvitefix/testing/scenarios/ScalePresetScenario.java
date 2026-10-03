@@ -41,7 +41,7 @@ public class ScalePresetScenario implements UIScenario {
             GinvDataStore.setAutoscale(true);
         })
                 .ticks(1)
-                .openScreen("gmenu popup", ctx -> new GinvMenuScreen(true))
+                .openScreen("gmenu", ctx -> new GinvMenuScreen())
                 .awaitScreen(GinvMenuScreen.class)
                 .awaitModularUI()
                 // Autoscale at open: the panel renders at a fitted scale in
@@ -84,7 +84,7 @@ public class ScalePresetScenario implements UIScenario {
                 .screenshot("scale_100")
                 .teardown("restore scale and autoscale", ctx -> {
                     GinvDataStore.setUiScale(1.0);
-                    GinvDataStore.setAutoscale(true);
+                    GinvDataStore.setAutoscale(false);
                     if (ctx.screen() != null) ctx.mc().setScreen(null);
                 });
     }

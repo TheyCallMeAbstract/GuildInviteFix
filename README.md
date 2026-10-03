@@ -34,29 +34,36 @@ Toggle freeze on the invite queue. When frozen, no invites are sent but new targ
 Run again to resume sending.
 
 ```
-/gmenu [popup|screen]
+/gmenu
 ```
 
-Open the in-game menu (LDLib2 UI) with four tabs:
+Open the in-game menu (LDLib2 UI) as a popup over the HUD, with three tabs:
 
 - **Control** — state banner (RUNNING/STOPPED + pending), the big
-  **STOP/RESUME INVITES** toggle, queue by name(s), queue by guild level
-  (live tab-range caption; disabled with a hint outside SkyBlock), and the
-  current-target list with per-row remove and **Clear**
-- **Settings** — invite delay range (min/max ms) and whitelist-only mode
-- **Lists** — whitelist/blacklist management; each row shows the player's head,
-  name, their guild level (colored like the server renders it), a **⚡** queue
-  button and three buttons: **W** (whitelist), **B** (blacklist), **X** (remove
-  record and unqueue). Add offline players by name.
-- **Monitor** — live queue status plus per-player invite counts and last-invite
-  times (persisted across restarts)
+  **STOP/RESUME INVITES** toggle, queue by name(s) (queued names are also
+  recorded for the Lists tab), queue by guild level
+  (live tab-range caption inside SkyBlock; disabled outside), and the
+  current-target list with per-row remove, per-player invite count/last-invite
+  age and **Clear**
+- **Settings** — sectioned into **Invites** (invite delay range in ms with an
+  **Apply** button), **Filtering** (whitelist only, with a note that only
+  whitelisted players are invited and blacklisted players are always blocked)
+  and **Appearance** (the menu theme picker)
+- **Lists** — whitelist/blacklist management with a player-name search box
+  plus a **LVL ▾** popover holding an inclusive min/max range (each field
+  optional; blank = unset) and a **Clear** action; the filter applies live and
+  an unknown-level player is excluded whenever a bound is set. Each row shows
+  the player's head, name and guild level badge (colored like the server
+  renders it) immediately after the name, with three borderless icon buttons —
+  a whitelist page, a blacklist page and a lightning bolt to remove/unqueue
+  (active whitelist/blacklist show a green/red border); a fully filtered-out list
+  shows **"No players match."**
 
 Above the tabs, the **top bar** shows the menu title, the live queue status,
-the **SkyBlock chip** (grey outside SkyBlock, blue inside) and a **View ▾**
-menu with the scale presets (75–200%), an **Autoscale** switch (fit the menu
-to the viewport; default on, the fit itself is never persisted, and choosing
-a preset turns it off) and the popup/screen mode (`screen` applies from the
-next open; the OS window keeps its own geometry either way).
+the centered **SkyBlock chip** (grey outside SkyBlock, blue inside) and a
+**View ▾** menu with the scale presets (100–200%) and an **Autoscale** switch
+(fit the menu to the viewport; default off, so the menu opens at exactly 100%,
+the fit itself is never persisted, and choosing a preset turns it off).
 
 The top bar's **↗** button pops the menu out into its own program-style OS
 window (LDLib2 `ModularUIWindow`) so it stays visible outside the Minecraft
@@ -68,15 +75,18 @@ panel cannot be measured — so its proportions track the in-game menu at any
 Minecraft GUI-scale option. It behaves like a desktop app: drag to move,
 drag the edges to resize, double-click the title bar to maximize/restore,
 **Esc** to close (the first press leaves a focused text field), a **↩
-re-dock** button that puts the menu back into the screen mode it came from,
-and — where the platform supports it — a pin for always-on-top. Both the
-in-game menu and the window share a status bar with live queue status and
-action feedback.
+re-dock** button that puts the menu back in-game as the popup, and — where the
+platform supports it — a pin for always-on-top. If the game is fullscreen when
+you pop out, it drops to windowed first (a second window cannot open over a
+fullscreen one) and stays windowed afterwards. Both the in-game menu and the
+window share a status bar with live queue status and action feedback. Resizing
+is a proportional zoom locked to the window's opening size — it can grow, but
+never shrink below the layout it opened with.
 
-`popup` (default) renders over a transparent background and closes on an outside
-click; `screen` renders with a dimmed backdrop. Blacklisted players are never
-invited; whitelist-only mode invites only whitelisted players. Invite delays
-apply to `/ginv` and `/glvl` alike.
+The menu always opens as the popup (transparent background, closes on an
+outside click) — there is no separate full-screen mode. Blacklisted players are
+never invited; whitelist-only mode invites only whitelisted players. Invite
+delays apply to `/ginv` and `/glvl` alike.
 
 ## Installation
 
@@ -109,12 +119,15 @@ Two layers:
 
 - **JUnit (headless, runs inside `./gradlew build`)** — pure logic:
   guild-prefix parsing (`GuildLevels.parsePrefix`), target-string parsing
-  (`GinvCommand.parseTargets`), and the `LevelQueueResult` contract. Run
-  alone with `./gradlew test`.
-- **GUI suite (LDLib2 uitest scenarios, development builds)** — six scenarios
-  driving a real client: menu-open regression, tab structure, control-flow
-  over the mock invite route, level queue with fixture rosters, scale
-  presets, and pop-out stability + re-dock.
+  (`GinvCommand.parseTargets`), the `LevelQueueResult` contract, and the
+  `ListsFilter` name/level contract. Run alone with `./gradlew test`.
+- **GUI suite (LDLib2 uitest scenarios, development builds)** — eight
+  scenarios driving a real client: menu-open regression, tab structure,
+  control-flow over the mock invite route, level queue with fixture rosters,
+  scale presets, pop-out stability + re-dock, layout rhythm (column
+  alignment, gap and symmetry checks for the player table at every scale),
+  and Lists search + LVL filtering (name narrowing, inclusive bounds,
+  no-level exclusion, Clear).
 
 ```bash
 # headless tests only

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.ginv.GuildInviteFix;
+import com.ginv.ui.theme.GinvTheme;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.util.Map;
  * <ul>
  *   <li>{@code players.json} — exact-cased name → invite count, last invite time, list state</li>
  *   <li>{@code settings.json} — min/max delay (ms), whitelist-only, always-on-top,
- *       menu scale and the autoscale flag</li>
+ *       menu scale, the autoscale flag and the theme id</li>
  * </ul>
  *
  * <p>All access is guarded by a single lock because mutations happen both on the client
@@ -34,33 +35,32 @@ import java.util.Map;
  */
 public final class GinvDataStore {
 
-    /** Membership of the white/blacklist. */
+
     public enum ListState {
-        NONE, WHITE, BLACK;
+        NONE, WHITELIST, BLACKLIST;
 
         static ListState parse(String raw) {
             if (raw == null) return NONE;
             return switch (raw.toLowerCase(Locale.ROOT)) {
-                case "white", "whitelist" -> WHITE;
-                case "black", "blacklist" -> BLACK;
+                case "white", "whitelist" -> WHITELIST;
+                case "black", "blacklist" -> BLACKLIST;
                 default -> NONE;
             };
         }
 
         public String id() {
             return switch (this) {
-                case WHITE -> "white";
-                case BLACK -> "black";
+                case WHITELIST -> "white";
+                case BLACKLIST -> "black";
                 default -> "none";
             };
         }
     }
 
-    /** Immutable snapshot of one tracked player. */
+
     public record PlayerSnapshot(String name, int invites, long lastInviteMs, ListState listState) {
     }
 
-    /** Mutable JSON shape for one player; kept package-private to the Gson layer. */
     private static final class PlayerEntry {
         int invites;
         long lastInvite;
@@ -96,16 +96,16 @@ public final class GinvDataStore {
     private static boolean whitelistOnly;
     private static boolean alwaysOnTop;
     private static double uiScale = DEFAULT_UI_SCALE;
-    /**
-     * Viewport-fit scaling for the in-screen menu (design: default ON).
-     * Old configs have no key and therefore opt in.
-     */
-    private static boolean autoscale = true;
+    private static String theme = "dusk";
+
+    // Off by default: the menu opens at the 100% preset (a real preset, not a
+    // viewport fit). The View menu's Autoscale switch opts in explicitly.
+    private static boolean autoscale = false;
 
     private GinvDataStore() {
     }
 
-    // --- paths ---
+    //paths
 
     private static Path storeDir() {
         return FabricLoader.getInstance().getConfigDir().resolve("guildinvitefix");
@@ -119,7 +119,7 @@ public final class GinvDataStore {
         return storeDir().resolve("settings.json");
     }
 
-    // --- loading ---
+    //loading
 
     private static void ensureLoaded() {
         if (loaded) return;
@@ -157,8 +157,10 @@ public final class GinvDataStore {
                         if (root.has("whitelistOnly")) whitelistOnly = root.get("whitelistOnly").getAsBoolean();
                         if (root.has("alwaysOnTop")) alwaysOnTop = root.get("alwaysOnTop").getAsBoolean();
                         if (root.has("uiScale")) uiScale = clampScale(root.get("uiScale").getAsDouble());
-                        // Missing key → default true (old configs opt into autoscale).
+                        // Missing key → default false (100% on first open).
                         if (root.has("autoscale")) autoscale = root.get("autoscale").getAsBoolean();
+                        // Unknown/blank id → DUSK (GinvTheme.parse default).
+                        if (root.has("theme")) theme = GinvTheme.parse(root.get("theme").getAsString()).id();
                     }
                 }
             }
@@ -169,7 +171,8 @@ public final class GinvDataStore {
             whitelistOnly = false;
             alwaysOnTop = false;
             uiScale = DEFAULT_UI_SCALE;
-            autoscale = true;
+            theme = "dusk";
+            autoscale = false;
         }
 
         if (minDelayMs > maxDelayMs) {
@@ -188,7 +191,7 @@ public final class GinvDataStore {
         return Math.max(MIN_UI_SCALE, Math.min(MAX_UI_SCALE, value));
     }
 
-    // --- saving ---
+
 
     private static void savePlayers() {
         try {
@@ -215,6 +218,7 @@ public final class GinvDataStore {
             root.addProperty("alwaysOnTop", alwaysOnTop);
             root.addProperty("uiScale", uiScale);
             root.addProperty("autoscale", autoscale);
+            root.addProperty("theme", theme);
             atomicWrite(settingsFile(), GSON.toJson(root));
         } catch (IOException e) {
             GuildInviteFix.LOGGER.error("[Ginv] Failed to save settings.json", e);
@@ -231,9 +235,7 @@ public final class GinvDataStore {
         }
     }
 
-    // --- version ---
 
-    /** Bumped on every mutation; the menu polls this to know when to rebuild rows. */
     public static int version() {
         synchronized (LOCK) {
             ensureLoaded();
@@ -241,9 +243,7 @@ public final class GinvDataStore {
         }
     }
 
-    // --- player queries ---
 
-    /** All tracked player names (snapshot, insertion order of the store). */
     public static List<String> trackedNames() {
         synchronized (LOCK) {
             ensureLoaded();
@@ -251,7 +251,6 @@ public final class GinvDataStore {
         }
     }
 
-    /** Snapshot for one player, or {@code null} if untracked. */
     public static PlayerSnapshot snapshot(String name) {
         synchronized (LOCK) {
             ensureLoaded();
@@ -261,7 +260,6 @@ public final class GinvDataStore {
         }
     }
 
-    /** All tracked players as snapshots (for the monitor section). */
     public static List<PlayerSnapshot> snapshots() {
         synchronized (LOCK) {
             ensureLoaded();
@@ -291,16 +289,15 @@ public final class GinvDataStore {
         return name;
     }
 
-    // --- invite policy ---
+    //Invite policy: Whether an invite must be sent right now.
 
-    /** Whether an invite to {@code name} may be sent right now. */
     public static boolean isAllowed(String name) {
         synchronized (LOCK) {
             ensureLoaded();
             PlayerEntry entry = find(name);
             ListState state = entry == null ? ListState.NONE : ListState.parse(entry.list);
-            if (state == ListState.BLACK) return false;
-            if (whitelistOnly && state != ListState.WHITE) return false;
+            if (state == ListState.BLACKLIST) return false;
+            if (whitelistOnly && state != ListState.WHITELIST) return false;
             return true;
         }
     }
@@ -322,9 +319,9 @@ public final class GinvDataStore {
         }
     }
 
-    // --- list management ---
 
-    /** Ensures a record exists (menu "Add" button). Returns true if newly created. */
+
+
     public static boolean touch(String name) {
         synchronized (LOCK) {
             ensureLoaded();
@@ -336,7 +333,7 @@ public final class GinvDataStore {
         }
     }
 
-    /** Sets (or clears, with {@link ListState#NONE}) the list membership of a player. */
+
     public static void setListState(String name, ListState state) {
         synchronized (LOCK) {
             ensureLoaded();
@@ -355,7 +352,7 @@ public final class GinvDataStore {
         }
     }
 
-    /** Removes a player's record entirely (counts + list state). */
+
     public static void removePlayer(String name) {
         synchronized (LOCK) {
             ensureLoaded();
@@ -366,7 +363,7 @@ public final class GinvDataStore {
         }
     }
 
-    // --- settings ---
+    //settings
 
     public static boolean whitelistOnly() {
         synchronized (LOCK) {
@@ -404,7 +401,7 @@ public final class GinvDataStore {
         }
     }
 
-    /** The menu's independent scale factor (1.0 = authored size). */
+
     public static double uiScale() {
         synchronized (LOCK) {
             ensureLoaded();
@@ -412,7 +409,7 @@ public final class GinvDataStore {
         }
     }
 
-    /** Persists the menu scale; clamped to {@code [0.5, 3.0]}, invalid → 1.0. */
+
     public static void setUiScale(double value) {
         synchronized (LOCK) {
             ensureLoaded();
@@ -425,10 +422,7 @@ public final class GinvDataStore {
         }
     }
 
-    /**
-     * Whether the menu viewport-fits its scale on every screen build (default ON).
-     * Persistence only — the fit math lives in {@code GinvMenuScreen}.
-     */
+
     public static boolean autoscale() {
         synchronized (LOCK) {
             ensureLoaded();
@@ -436,12 +430,37 @@ public final class GinvDataStore {
         }
     }
 
-    /** Persists the autoscale flag; toggling it bumps the version like other settings. */
+
     public static void setAutoscale(boolean value) {
         synchronized (LOCK) {
             ensureLoaded();
             if (autoscale != value) {
                 autoscale = value;
+                version++;
+                saveSettings();
+            }
+        }
+    }
+
+    /** Persisted theme id (always a valid {@link GinvTheme} id; defaults to {@code "dusk"}). */
+    public static String themeId() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            return theme;
+        }
+    }
+
+    /**
+     * Persists the selected theme. The id is normalized through
+     * {@link GinvTheme#parse(String)} so an unknown value degrades to
+     * {@code "dusk"}; the version bumps only on a real change.
+     */
+    public static void setTheme(String value) {
+        synchronized (LOCK) {
+            ensureLoaded();
+            String normalized = GinvTheme.parse(value).id();
+            if (!normalized.equals(theme)) {
+                theme = normalized;
                 version++;
                 saveSettings();
             }
@@ -462,7 +481,6 @@ public final class GinvDataStore {
         }
     }
 
-    /** Applies both delays at once; values are clamped and ordered. */
     public static void setDelays(int min, int max) {
         synchronized (LOCK) {
             ensureLoaded();
@@ -482,7 +500,7 @@ public final class GinvDataStore {
         }
     }
 
-    /** Eagerly loads the store during client init so failures surface early. */
+
     public static void init() {
         synchronized (LOCK) {
             ensureLoaded();

@@ -39,7 +39,7 @@ public class PopoutStabilityRedockScenario implements UIScenario {
             if (ctx.screen() != null) ctx.mc().setScreen(null);
         })
                 .ticks(1)
-                .openScreen("gmenu popup", ctx -> new GinvMenuScreen(true))
+                .openScreen("gmenu", ctx -> new GinvMenuScreen())
                 .awaitScreen(GinvMenuScreen.class)
                 .awaitModularUI()
                 .awaitElement("#ginv_popout")
@@ -61,10 +61,26 @@ public class PopoutStabilityRedockScenario implements UIScenario {
                     ctx.input().mouseUp(bounds.centerX(), bounds.centerY(), Keys.MOUSE_LEFT);
                 })
                 .waitUntil("the pop-out window opened", ctx -> GinvMenuWindow.active() != null)
-                .step("remember the window instance", ctx -> ctx.put("popout", GinvMenuWindow.active()))
+                .step("remember the window instance", ctx -> {
+                    GinvMenuWindow window = GinvMenuWindow.active();
+                    ctx.put("popout", window);
+                    // The window opens at its reflow base, so this ratio is the
+                    // one the resize constraint locks to.
+                    var os = window.window();
+                    ctx.put("open_ratio", os.getWindowWidth() / (double) os.getWindowHeight());
+                })
                 .ticks(12)
                 .check("the same window instance survived 12 ticks (no rebuild storm)",
                         ctx -> ctx.<GinvMenuWindow>get("popout") == GinvMenuWindow.active())
+                .check("the live window keeps the opening aspect and never drops below the floor",
+                        ctx -> {
+                            GinvMenuWindow window = GinvMenuWindow.active();
+                            var os = window.window();
+                            double base = ctx.<Double>get("open_ratio");
+                            double ratio = os.getWindowWidth() / (double) os.getWindowHeight();
+                            return Math.abs(ratio - base) <= 0.03
+                                    && os.getWindowWidth() >= 200 && os.getWindowHeight() >= 150;
+                        })
                 .step("capture the window surface", ctx -> {
                     GinvMenuWindow window = GinvMenuWindow.active();
                     ctx.screenshotSurface("popout_window", window.surface());

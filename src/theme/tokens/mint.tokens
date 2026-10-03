@@ -1,0 +1,51 @@
+# mint palette — LSS AARRGGBB (alpha first, 8 digits)
+# Base slots copied verbatim from LDLib2's assets/ldlib2/lss/mint.lss:
+#   bg #0d1210  surface #131a17  raised #1d2723  hovered #26332e  sunken #090d0c
+#   line #16ffffff (9% white)  lineStrong #2effffff (18% white)
+#   text #e4ece8  textDim #94a49c  textFaint #6a7a72
+#   accent #4ade80  accentHover #6ee79b  accentPressed #37b869  accentWash #3d4ade80
+# Semantics reuse the DUSK dark-authored values verbatim: mint is a dark surface,
+# so no adjustment was required.
+#
+# CONTRAST (WCAG, semantic ink vs mint surface #131a17 / raised #1d2723):
+#   danger 4.5/3.9  success 7.0/6.1  warn 7.0/6.1  listWhite 7.0/6.1  listBlack 4.5/3.9
+#   danger/sunken 5.0  success/sunken 7.7  warn/sunken 7.7 (feedback bar)
+#   text/surface 14.7  textDim/surface 6.8  textFaint/raised 3.4 (muted)  accent/surface 10.2
+#   onAccent/danger 3.9  onAccent/success 2.5 — large hero label only (unchanged DUSK pairing).
+#   disabledSurface/togglePressed keep DUSK's neutral #191d26/#1a1f29 fills.
+bg=#FF0D1210
+surface=#FF131A17
+raised=#FF1D2723
+hovered=#FF26332E
+sunken=#FF090D0C
+line=#16FFFFFF
+rowAlt=#0AFFFFFF
+lineStrong=#2EFFFFFF
+text=#FFE4ECE8
+textDim=#FF94A49C
+textFaint=#FF6A7A72
+accent=#FF4ADE80
+accentHover=#FF6EE79B
+accentPressed=#FF37B869
+accentWash=#3D4ADE80
+danger=#FFE5484D
+dangerHover=#FFEC6165
+dangerPressed=#FFCC3D42
+success=#FF3FB950
+successHover=#FF4FCB61
+successPressed=#FF2E9E3D
+successWash=#2E3FB950
+warn=#FFD29922
+scrim=#A6000000
+disabledSurface=#FF191D26
+disabledBorder=#0DFFFFFF
+transparent=#00000000
+togglePressed=#FF1A1F29
+scrollThumb=#3AFFFFFF
+scrollThumbHover=#66FFFFFF
+buttonText=#FFFFFFFF
+onAccent=#FFFFFFFF
+listWhite=#FF3FB950
+listBlack=#FFE5484D
+closeHover=#FFE5484D
+closePressed=#FFCC3D42

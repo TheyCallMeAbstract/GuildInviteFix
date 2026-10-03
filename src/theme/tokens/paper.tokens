@@ -1,0 +1,53 @@
+# paper palette — LSS AARRGGBB (alpha first, 8 digits)
+# Base slots derived verbatim from LDLib2's assets/ldlib2/lss/paper.lss:
+#   bg #dfe3ea  surface #eff1f5  raised #ffffff  hovered #eef1f6  sunken #ffffff
+#   line #1f000000 (12% black)  lineStrong #33000000 (20% black)
+#   text #1b1e24  textDim #5b6270  textFaint #9aa0ab
+#   accent #3b6ef6  accentHover #5c86f8  accentPressed #2f5ad4  accentWash #2e3b6ef6
+# Semantics authored for a light surface (never inferred from dusk): dark red /
+# dark green / dark amber ink, translucent-black hairlines and thumb, a softer
+# scrim, and ink-on-fill white for filled fills.
+#
+# CONTRAST (WCAG, vs paper surface #eff1f5 unless noted):
+#   text 14.6:1   textDim 5.5:1   buttonText/raised 16.6:1
+#   accent 3.9:1 (uppercase headers)     textDim/sunken(tab header) 6.2:1
+#   danger 5.6:1  success 5.4:1   warn 5.2:1
+#   onAccent/danger 5.6:1   onAccent/success 5.4:1
+#   textFaint/raised 2.6:1 (muted empty-state only, non-body)
+#   line/lineStrong: non-text decorative hairlines (12% / 20% black)
+bg=#FFDFE3EA
+surface=#FFEFF1F5
+raised=#FFFFFFFF
+hovered=#FFEEF1F6
+sunken=#FFFFFFFF
+line=#1F000000
+rowAlt=#0F000000
+lineStrong=#33000000
+text=#FF1B1E24
+textDim=#FF5B6270
+textFaint=#FF9AA0AB
+accent=#FF3B6EF6
+accentHover=#FF5C86F8
+accentPressed=#FF2F5AD4
+accentWash=#2E3B6EF6
+danger=#FFC42B1C
+dangerHover=#FFD64535
+dangerPressed=#FFA82618
+success=#FF0F7B0F
+successHover=#FF159A15
+successPressed=#FF0B5E0B
+successWash=#2E0F7B0F
+warn=#FF9D5D00
+scrim=#59000000
+disabledSurface=#FFF0F1F4
+disabledBorder=#1A000000
+transparent=#00000000
+togglePressed=#FFDFE3EA
+scrollThumb=#3A000000
+scrollThumbHover=#66000000
+buttonText=#FF1B1E24
+onAccent=#FFFFFFFF
+listWhite=#FF0F7B0F
+listBlack=#FFC42B1C
+closeHover=#FFC42B1C
+closePressed=#FFA82618

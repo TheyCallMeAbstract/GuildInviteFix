@@ -4,6 +4,7 @@
 build/
 out/
 classes/
+local.properties
 
 # eclipse
 
@@ -33,16 +34,25 @@ bin/
 run/
 config/
 logs/
+mods/
+crash-reports/
 
 # java
 
-hs_err_*.log
-replay_*.log
+*.log
 *.hprof
 *.jfr
+*.class
+
+# misc
+
+*.orig
+*.rej
 
 # tooling (local, not part of the mod)
 
 .fabric/
 .opencode/
 openspec/
+thoughts/
+

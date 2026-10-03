@@ -46,7 +46,7 @@ public class MenuOpenRegressionScenario implements UIScenario {
                 .ticks(1)
                 // The real /gmenu path: arm the deferred open, let the
                 // end-client-tick applier perform it.
-                .step("arm the deferred /gmenu popup open", ctx -> GmenuCommand.requestOpen(true))
+                .step("arm the deferred /gmenu open", ctx -> GmenuCommand.requestOpen())
                 .awaitScreen(GinvMenuScreen.class)
                 .awaitModularUI()
                 .awaitElement("#ginv_panel")
@@ -59,7 +59,7 @@ public class MenuOpenRegressionScenario implements UIScenario {
                 .checkCount(".ginv-sky-off", 1)
                 .checkCount(".ginv-topbar", 1)
                 .checkTextContains("#ginv_banner", "RUNNING")
-                .checkCount(".ginv_tab", 4)
+                .checkCount(".ginv_tab", 3)
                 .check("the panel rendered a real element tree",
                         ctx -> ctx.requireUI().getAllElements().size() > 30)
                 .check("the panel has finite, centered bounds", ctx -> {

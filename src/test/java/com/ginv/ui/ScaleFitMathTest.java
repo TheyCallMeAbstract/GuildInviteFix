@@ -16,8 +16,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ScaleFitMathTest {
 
     @Test
-    void fitFloorsAtThreeQuartersOnATinyViewport() {
-        assertEquals(0.75, GinvMenuScreen.fitScaleFor(10, 10, 1.0), 1e-9);
+    void fitFloorsAtOneOnATinyViewport() {
+        // The 75% floor is gone: 100% is the smallest menu scale.
+        assertEquals(1.0, GinvMenuScreen.fitScaleFor(10, 10, 1.0), 1e-9);
+        assertEquals(1.0, GinvMenuScreen.fitScaleFor(10, 10, 2.0), 1e-9);
     }
 
     @Test
@@ -26,9 +28,12 @@ class ScaleFitMathTest {
     }
 
     @Test
-    void fitTakesTheSmallerAxisRatio() {
-        // 340×266 design: width ratio 0.96, height ratio 0.94 → height wins.
-        assertEquals(0.94, GinvMenuScreen.fitScaleFor(340, 266, 1.0), 1e-9);
+    void fitTakesTheSmallerAxisRatioAboveTheFloor() {
+        // 340×266 design: width ratio 0.96, height ratio 0.94 → height wins, but
+        // 0.94 is below the 1.0 floor, so the result clamps to 1.0.
+        assertEquals(1.0, GinvMenuScreen.fitScaleFor(340, 266, 1.0), 1e-9);
+        // A viewport twice the design on both axes fits at 1.88 (height-bound).
+        assertEquals(1.88, GinvMenuScreen.fitScaleFor(680, 532, 1.0), 1e-9);
     }
 
     @Test
@@ -51,7 +56,7 @@ class ScaleFitMathTest {
             GinvDataStore.setUiScale(1.25);
             GinvDataStore.setAutoscale(true);
             double fit = GinvMenuScreen.fitScaleFor(340, 266, GinvDataStore.uiScale());
-            assertEquals(0.94, fit, 1e-9);
+            assertEquals(1.0, fit, 1e-9);
             assertEquals(1.25, GinvDataStore.uiScale(), 1e-9,
                     "the fit must never write the stored preset");
             assertTrue(GinvDataStore.autoscale(),
@@ -74,6 +79,31 @@ class ScaleFitMathTest {
     @Test
     void popoutSizeHonoursThePlatformWindowFloor() {
         assertEquals(200, GinvMenuScreen.popoutSizeFor(10, 2.0, 1.0, 200));
+    }
+
+    @Test
+    void popupWidthUsesTheDesignWidthWhenTheViewportHasRoom() {
+        // 1920×1080-ish viewport: plenty of room, keep the 340 design width.
+        assertEquals(340f, GinvMenuScreen.popupShellWidth(960, 540, 340, 266, 1.45f), 1e-4);
+    }
+
+    @Test
+    void popupWidthCapsTheAspectOnAShortWideViewport() {
+        // Height-capped to 200×0.94 = 188; width must not exceed 188×1.45 = 272.6.
+        assertEquals(272.6f, GinvMenuScreen.popupShellWidth(2000, 200, 340, 266, 1.45f), 1e-3);
+    }
+
+    @Test
+    void popupWidthRespectsANarrowViewport() {
+        // Width-bound: 0.96 of 150 = 144, below both the design width and the
+        // aspect cap, so the viewport wins.
+        assertEquals(144f, GinvMenuScreen.popupShellWidth(150, 1080, 340, 266, 1.45f), 1e-4);
+    }
+
+    @Test
+    void popupWidthFallsBackToTheDesignOnADegenerateViewport() {
+        assertEquals(340f, GinvMenuScreen.popupShellWidth(0, 0, 340, 266, 1.45f), 1e-4);
+        assertEquals(340f, GinvMenuScreen.popupShellWidth(800, -1, 340, 266, 1.45f), 1e-4);
     }
 
     @Test

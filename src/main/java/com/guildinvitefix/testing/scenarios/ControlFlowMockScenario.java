@@ -47,7 +47,7 @@ public class ControlFlowMockScenario implements UIScenario {
             GuildTestGateway.install(List.of(), false);
         })
                 .ticks(1)
-                .openScreen("gmenu popup", ctx -> new GinvMenuScreen(true))
+                .openScreen("gmenu", ctx -> new GinvMenuScreen())
                 .awaitScreen(GinvMenuScreen.class)
                 .awaitModularUI()
                 .checkTextContains("#ginv_banner", "RUNNING")

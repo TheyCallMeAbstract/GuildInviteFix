@@ -4,6 +4,10 @@ import com.ginv.GuildInviteFix;
 import com.ginv.command.GinvCommand;
 import com.ginv.command.LevelQueueResult;
 import com.ginv.data.GinvDataStore;
+import com.ginv.ui.theme.GinvTheme;
+import com.ginv.ui.widget.GinvPageHost;
+import com.ginv.ui.widget.GinvSettingsForm;
+import com.ginv.ui.widget.GinvTable;
 import com.ginv.utils.GuildDirectory;
 import com.ginv.utils.GuildLevels;
 import com.ginv.utils.SkyBlockDetector;
@@ -18,14 +22,14 @@ import com.lowdragmc.lowdraglib2.gui.ui.UI;
 import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
 import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
 import com.lowdragmc.lowdraglib2.gui.ui.style.Stylesheet;
-import com.lowdragmc.lowdraglib2.gui.ui.style.StylesheetManager;
 import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
+import com.lowdragmc.lowdraglib2.gui.ui.data.Horizontal;
+import com.lowdragmc.lowdraglib2.gui.ui.data.TextWrap;
+import com.lowdragmc.lowdraglib2.gui.ui.data.Vertical;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
+import com.lowdragmc.lowdraglib2.gui.ui.elements.Selector;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Switch;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Tab;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.TabView;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Toggle;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.ToggleGroupElement;
@@ -40,7 +44,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,15 +52,16 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * The guild invite menu: Control / Lists / Monitor / Settings.
+ * The guild invite menu: Control / Lists / Settings.
  *
- * <p>Popup mode renders over a transparent screen background and closes on an
- * outside click; screen mode adds a dimmed backdrop and is modal (ESC only).
+ * <p>The menu opens as a popup overlay: a transparent screen background that
+ * closes on an outside click. There is no separate dimmed/full-screen mode.
  * The title bar's pop-out button rebuilds the menu inside an OS window
  * (LDLib2 {@code ModularUIWindow}) with full program-window chrome — title
  * bar with re-dock, maximize/restore, always-on-top pin, edge resize and a
- * status bar. Both contexts are themed with LDLib2's DUSK stylesheet plus
- * the subtree-local {@code office.lss} mod delta attached on the root.
+ * status bar. Both contexts are themed by the persisted {@link GinvTheme}
+ * (LDLib2 base sheet + the subtree-local {@code office-<id>.lss} mod delta
+ * attached on the root); an unknown id or a missing delta degrades to DUSK.
  *
  * <p><b>Scale:</b> every authored pixel goes through {@link #u(double)}.
  * In-screen, values multiply by the persisted {@code uiScale} (or the
@@ -74,14 +78,38 @@ import java.util.TreeSet;
  */
 public class GinvMenuScreen extends ModularUIScreen {
 
-    /** Menu scale presets offered by the Settings segmented control. */
-    private static final double[] SCALE_PRESETS = {0.75, 1.0, 1.25, 1.5, 2.0};
+    /** Menu scale presets offered by the View popover. 100% is the floor. */
+    private static final double[] SCALE_PRESETS = {1.0, 1.25, 1.5, 2.0};
     /** Pop-out window size in authored pixels at uiScale 1 / contentScale 1. */
     private static final int BASE_WINDOW_WIDTH = 420;
     private static final int BASE_WINDOW_HEIGHT = 300;
     /** Shell design size in authored pixels: the autoscale back-solve target. */
     private static final float SHELL_MAX_WIDTH = 340;
     private static final float SHELL_MAX_HEIGHT = 266;
+    /**
+     * Popup page max aspect (width : height). The shell's width is clamped to
+     * the effective (viewport-capped) height × this ratio so the popup never
+     * stretches into a letterbox on a short/wide viewport. See
+     * {@link #popupShellWidth}.
+     */
+    private static final float SHELL_MAX_ASPECT = 1.45f;
+    /** Vanilla Minecraft font, used for player-row text (head + name + level). */
+    private static final Identifier VANILLA_FONT = Identifier.withDefaultNamespace("default");
+
+    /** Spacing scale in authored units, scaled by u(): S1..S5 = 2/4/6/8/12. */
+    private static final double SPACE_1 = 2;
+    private static final double SPACE_2 = 4;
+    private static final double SPACE_3 = 6;
+    private static final double SPACE_4 = 8;
+    private static final double SPACE_5 = 12;
+
+    /** Borderless row-action sprites (whitelist page / blacklist page / bolt). */
+    private static final IGuiTexture WHITELIST_ICON =
+            SpriteTexture.of("guildinvitefix:textures/gui/whitelist.png");
+    private static final IGuiTexture BLACKLIST_ICON =
+            SpriteTexture.of("guildinvitefix:textures/gui/blacklist.png");
+    private static final IGuiTexture BOLT_ICON =
+            SpriteTexture.of("guildinvitefix:textures/gui/bolt.png");
 
     // --- scale context (client thread only; set on every buildLayout entry) ---
 
@@ -144,67 +172,51 @@ public class GinvMenuScreen extends ModularUIScreen {
     /** Remembered tab index, restored on rebuild (client thread only). */
     private static int savedTab = 0;
 
-    /** The LDLib2 base theme both the screen and the pop-out window are styled with (D1). */
-    private static Stylesheet paperSheet() {
-        return StylesheetManager.INSTANCE.getStylesheetSafe(StylesheetManager.DUSK);
-    }
-
-    /**
-     * Paper-based mod delta for this screen only (D2): attached subtree-local
-     * on {@code ginv_root}, never globally, so every other screen keeps DUSK
-     * untouched. A missing/broken sheet degrades to {@link Stylesheet#EMPTY}
-     * via the safe accessor.
-     */
-    private static Stylesheet officeSheet() {
-        return StylesheetManager.INSTANCE.getStylesheetSafe(
-                Identifier.fromNamespaceAndPath("guildinvitefix", "lss/office.lss"));
+    /** The active persisted theme; an unknown id degrades to DUSK inside parse. */
+    private static GinvTheme activeTheme() {
+        return GinvTheme.parse(GinvDataStore.themeId());
     }
 
     /** Everything the constructor needs, assembled statically before the screen exists. */
     private record Layout(
             GinvRoot root,
-            UIElement panel
+            UIElement panel,
+            Stylesheet baseSheet
     ) {
     }
 
-    /** Which in-game mode this screen instance shows (for pop-out/re-dock). */
-    private final boolean popup;
-
-    public GinvMenuScreen(boolean popup) {
-        this(buildLayout(popup, false), popup);
+    public GinvMenuScreen() {
+        this(buildLayout(false));
     }
 
-    private GinvMenuScreen(Layout layout, boolean popup) {
-        super(new ModularUI(UI.of(layout.root(), paperSheet())), Component.literal("Guild Invite Fix"));
-        this.popup = popup;
+    private GinvMenuScreen(Layout layout) {
+        super(new ModularUI(UI.of(layout.root(), layout.baseSheet())), Component.literal("BWD"));
 
-        if (popup) {
-            UIElement panel = layout.panel();
-            GinvRoot root = layout.root();
-            root.addEventListener(UIEvents.MOUSE_DOWN, event -> {
-                if (event.button != 0) return;
-                float left = panel.getPositionX();
-                float top = panel.getPositionY();
-                boolean inside = event.x >= left && event.x <= left + panel.getSizeWidth()
-                        && event.y >= top && event.y <= top + panel.getSizeHeight();
-                // The View popover is anchored inside the panel: a press on it
-                // is never an outside press, even if it somehow overflowed the
-                // panel.
-                if (!inside && root.viewPopover != null
-                        && (within(root.viewPopover, event.x, event.y)
-                            || inSubtree(root.viewPopover, event.target))) {
-                    inside = true;
-                }
-                if (!inside) {
-                    onClose();
-                }
-            });
-        }
+        UIElement panel = layout.panel();
+        GinvRoot root = layout.root();
+        root.addEventListener(UIEvents.MOUSE_DOWN, event -> {
+            if (event.button != 0) return;
+            float left = panel.getPositionX();
+            float top = panel.getPositionY();
+            boolean inside = event.x >= left && event.x <= left + panel.getSizeWidth()
+                    && event.y >= top && event.y <= top + panel.getSizeHeight();
+            // The View popover is anchored inside the panel: a press on it
+            // is never an outside press, even if it somehow overflowed the
+            // panel.
+            if (!inside && root.viewPopover != null
+                    && (within(root.viewPopover, event.x, event.y)
+                        || inSubtree(root.viewPopover, event.target))) {
+                inside = true;
+            }
+            if (!inside) {
+                onClose();
+            }
+        });
     }
 
     // --------------------------------------------------------------- build
 
-    private static Layout buildLayout(boolean popup, boolean windowed) {
+    private static Layout buildLayout(boolean windowed) {
         uiScaleContext = windowed ? windowedScale() : GinvDataStore.uiScale();
         // Autoscale (T8): fit the 340x266 design into the viewport before any
         // u() call. In-game only — the OS window owns its geometry — and never
@@ -213,6 +225,29 @@ public class GinvMenuScreen extends ModularUIScreen {
             uiScaleContext = fitUiScale();
         }
         windowedContext = windowed;
+
+        // Resolve the active theme once per build. A missing generated delta is
+        // never fatal: log and fall back to the DUSK base with no delta (design
+        // §Error Handling). The chosen base is threaded through Layout so the
+        // screen/window constructor uses the same sheet.
+        GinvTheme theme = activeTheme();
+        Stylesheet delta = theme.deltaSheet();
+        Stylesheet base;
+        if (delta == Stylesheet.EMPTY) {
+            GuildInviteFix.LOGGER.warn(
+                    "[Ginv] Theme '{}' has no generated delta sheet; falling back to DUSK base",
+                    theme.id());
+            base = GinvTheme.DUSK.baseSheet();
+            delta = null;
+        } else {
+            base = theme.baseSheet();
+            if (base == Stylesheet.EMPTY) {
+                GuildInviteFix.LOGGER.warn(
+                        "[Ginv] Theme '{}' base sheet missing; falling back to DUSK base",
+                        theme.id());
+                base = GinvTheme.DUSK.baseSheet();
+            }
+        }
 
         // Created before the title bar so the pop-out button can capture it for
         // the "no second window available" feedback path.
@@ -223,7 +258,6 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         GinvRoot root = new GinvRoot();
         root.setId("ginv_root");
-        root.popup = popup;
         root.windowed = windowed;
         root.layout(layout -> {
             layout.widthPercent(100);
@@ -238,14 +272,13 @@ public class GinvMenuScreen extends ModularUIScreen {
             // The OS window supplies the frame; the sheet paints the dark
             // chrome surface via the ginv-windowed class (B1/D4).
             root.addClass("ginv-windowed");
-        } else if (!popup) {
-            // Screen mode dims the world behind the panel; popup stays
-            // transparent. Both surfaces come from office.lss (B1/D4).
-            root.addClass("ginv-screen");
         }
-        // Office light theme rides the subtree only (D2), attached before
-        // UI.of so the style engine picks it up on registration.
-        root.addLocalStylesheet(officeSheet());
+        // Theme delta rides the subtree only (D2), attached before UI.of so the
+        // style engine picks it up on registration. Null delta = the missing-
+        // sheet fallback above (DUSK base, no delta).
+        if (delta != null) {
+            root.addLocalStylesheet(delta);
+        }
 
         // Shell: transparent centered card owning the responsive max-width
         // and the 340x266 design height (both Java tokens, inline so the
@@ -255,11 +288,23 @@ public class GinvMenuScreen extends ModularUIScreen {
         // starves the TabView and the fixed regions overlap).
         UIElement shell = new UIElement();
         shell.addClass("ginv-shell");
+        // Popup aspect clamp: cap the shell width to the effective (viewport-
+        // capped) height × SHELL_MAX_ASPECT so a short/wide viewport can't
+        // letterbox the card. Windowed geometry is owned by the OS window.
+        float popupMaxWidth = SHELL_MAX_WIDTH;
+        if (!windowed) {
+            var window = Minecraft.getInstance().getWindow();
+            popupMaxWidth = popupShellWidth(
+                    (float) (window.getGuiScaledWidth() / uiScaleContext),
+                    (float) (window.getGuiScaledHeight() / uiScaleContext),
+                    SHELL_MAX_WIDTH, SHELL_MAX_HEIGHT, SHELL_MAX_ASPECT);
+        }
+        final float shellMaxWidth = popupMaxWidth;
         shell.layout(layout -> {
             layout.widthPercent(100);
-            layout.gapAll(u(4));
+            layout.gapAll(u(SPACE_2));
             if (!windowed) {
-                layout.maxWidth(u(SHELL_MAX_WIDTH));
+                layout.maxWidth(u(shellMaxWidth));
                 layout.maxHeightPercent(94);
                 layout.height(u(SHELL_MAX_HEIGHT));
             } else {
@@ -270,11 +315,11 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         UIElement panel = new UIElement();
         panel.setId("ginv_panel");
-        // Geometry is Java-owned (D6); office.lss keeps flex/paint (#ginv_panel).
+        // Geometry is Java-owned (D6); office-dusk.lss keeps flex/paint (#ginv_panel).
         panel.layout(layout -> {
             layout.widthPercent(100);
-            layout.paddingAll(u(5));
-            layout.gapAll(u(3));
+            layout.paddingAll(u(SPACE_4));
+            layout.gapAll(u(SPACE_3));
         });
         shell.addChild(panel);
         root.addChild(shell);
@@ -285,20 +330,20 @@ public class GinvMenuScreen extends ModularUIScreen {
         topBar.addClass("ginv-topbar");
         // Geometry is Java-owned (D6): the screen bar is 14u with 3u side
         // padding and 3u gaps; the windowed bar is 15u with 6/1u padding and
-        // 2u gaps. Paint stays in office.lss (.ginv-topbar / .ginv-windowed).
+        // 2u gaps. Paint stays in office-dusk.lss (.ginv-topbar / .ginv-windowed).
         topBar.layout(layout -> {
             layout.widthPercent(100);
             if (windowed) {
-                layout.height(u(15));
-                layout.minHeight(u(15));
-                layout.paddingHorizontal(u(6));
+                layout.height(u(16));
+                layout.minHeight(u(16));
+                layout.paddingHorizontal(u(SPACE_3));
                 layout.paddingVertical(u(1));
-                layout.gapAll(u(2));
+                layout.gapAll(u(SPACE_1));
             } else {
-                layout.height(u(14));
-                layout.minHeight(u(14));
-                layout.paddingHorizontal(u(3));
-                layout.gapAll(u(3));
+                layout.height(u(16));
+                layout.minHeight(u(16));
+                layout.paddingHorizontal(u(SPACE_3));
+                layout.gapAll(u(SPACE_2));
             }
         });
 
@@ -308,11 +353,11 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.width(u(10));
             layout.height(u(10));
         });
-        appIcon.getStyle().backgroundTexture(SpriteTexture.of("guildinvitefix:textures/gui/icon.png"));
+        appIcon.getStyle().backgroundTexture(SpriteTexture.of("guildinvitefix:ginvfixicon.png"));
         topBar.addChild(appIcon);
 
         Label titleLabel = new Label();
-        titleLabel.setText("Guild Invite Fix");
+        titleLabel.setText("BWD");
         titleLabel.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         titleLabel.layout(layout -> {
             layout.flexGrow(1);
@@ -320,17 +365,25 @@ public class GinvMenuScreen extends ModularUIScreen {
         });
         topBar.addChild(titleLabel);
 
-        // Right cluster order: SkyBlock chip → View anchor → chrome buttons.
+        // SkyBlock chip: centered over the bar via a click-through overlay,
+        // not parked in the right cluster — the overlay spans the bar so the
+        // chip's centre is the bar's centre regardless of how wide the left
+        // (icon + title) and right (View + chrome) clusters end up. Only the
+        // chip is interactive; the layer itself ignores hit-testing.
+        UIElement skyLayer = new UIElement();
+        skyLayer.addClass("ginv-topbar-center");
+        skyLayer.setAllowHitTest(false);
         SkyBlockStatusElement skyChip = new SkyBlockStatusElement();
         skyChip.layout(layout -> {
-            layout.paddingLeft(u(12));
-            layout.paddingRight(u(4));
-            layout.paddingVertical(u(2));
-            layout.gapAll(u(3));
+            layout.paddingLeft(u(SPACE_5));
+            layout.paddingRight(u(SPACE_2));
+            layout.paddingVertical(u(SPACE_1));
+            layout.gapAll(u(SPACE_2));
         });
         skyChip.getStateLabel().textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
         skyChip.setSkyOn(SkyBlockDetector.isSkyBlock());
-        topBar.addChild(skyChip);
+        skyLayer.addChild(skyChip);
+        topBar.addChild(skyLayer);
         root.skyChip = skyChip;
 
         Button viewButton = new Button();
@@ -367,14 +420,13 @@ public class GinvMenuScreen extends ModularUIScreen {
                 topBar.addChild(pinButton);
             }
 
-            // Re-dock: back into the exact screen mode the window came from.
+            // Re-dock: back into the in-game popup menu.
             Button dockButton = chromeButton(Icons.LEFT, "Back into the game", false);
             dockButton.setId("ginv_redock");
             dockButton.setOnClick(event -> {
                 GinvMenuWindow window = GinvMenuWindow.active();
                 if (window == null) return;
-                boolean origin = window.popupOrigin();
-                Minecraft.getInstance().setScreen(new GinvMenuScreen(origin));
+                Minecraft.getInstance().setScreen(new GinvMenuScreen());
                 window.onCloseRequested();
             });
 
@@ -412,13 +464,13 @@ public class GinvMenuScreen extends ModularUIScreen {
             });
             popOutButton.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
             popOutButton.getStyle().tooltips("Pop out into its own window");
-            popOutButton.setOnClick(event -> popOut(popup, feedbackLabel, panel));
+            popOutButton.setOnClick(event -> popOut(feedbackLabel, panel));
 
-            // Light top bar in-screen (office.lss #F6F6F6): the stock white
+            // Light top bar in-screen (office-dusk.lss #F6F6F6): the stock white
             // glyph would vanish on it, so tint it dark here; the windowed
             // chrome (dark #18181B) keeps the white original above.
             Button closeButton = chromeButton(Icons.WINDOW_CLOSE, "Close (Esc)", true);
-            // Dark glyph for the light in-screen bar; office.lss tints the
+            // Dark glyph for the light in-screen bar; office-dusk.lss tints the
             // pre-icon via the ginv-close-onscreen class (B8).
             closeButton.addClass("ginv-close-onscreen");
             closeButton.setId("ginv_close");
@@ -439,11 +491,15 @@ public class GinvMenuScreen extends ModularUIScreen {
         viewPopover.layout(layout -> {
             layout.positionType(TaffyPosition.ABSOLUTE);
             layout.right(u(2));
-            layout.top(u(16));
+            // Clears the bar: absolute offsets resolve against #ginv_panel's
+            // padding box, so the popover top must include the panel padding
+            // (8) plus the topbar height (16) plus a hairline gap — otherwise
+            // the dropdown opens over the bar and clips the SkyBlock chip.
+            layout.top(u(26));
             layout.width(u(210));
             layout.maxHeight(u(220));
-            layout.paddingAll(u(6));
-            layout.gapAll(u(4));
+            layout.paddingAll(u(SPACE_4));
+            layout.gapAll(u(SPACE_3));
         });
         viewPopover.getStyle().zIndex(1);
         viewPopover.setDisplay(false);
@@ -477,8 +533,8 @@ public class GinvMenuScreen extends ModularUIScreen {
         scaleGroup.layout(layout -> {
             layout.flexWrap(FlexWrap.WRAP);
             layout.widthPercent(100);
-            layout.paddingAll(u(1));
-            layout.gapAll(u(2));
+            layout.paddingAll(u(SPACE_1));
+            layout.gapAll(u(SPACE_1));
         });
         for (double preset : SCALE_PRESETS) {
             Toggle toggle = new Toggle();
@@ -504,40 +560,10 @@ public class GinvMenuScreen extends ModularUIScreen {
         }
         viewPopover.addChild(scaleGroup);
 
-        // Mode: Popup | Screen. In-game only — the OS window is windowed by
-        // definition, so the control is omitted there rather than no-op.
-        if (!windowed) {
-            viewPopover.addChild(caption("Mode"));
-            ToggleGroupElement modeGroup = new ToggleGroupElement();
-            modeGroup.addClass("ginv-mode-group");
-            modeGroup.layout(layout -> {
-                layout.widthPercent(100);
-                layout.paddingAll(u(1));
-                layout.gapAll(u(2));
-            });
-            for (int i = 0; i < 2; i++) {
-                boolean wantPopup = i == 0;
-                Toggle toggle = new Toggle();
-                toggle.setId(wantPopup ? "ginv_mode_popup" : "ginv_mode_screen");
-                toggle.setText(wantPopup ? "Popup" : "Screen");
-                sizeGroupToggle(toggle);
-            toggle.toggleLabel(label -> {
-                label.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
-                label.layout(layout -> {
-                    layout.paddingLeft(u(2));
-                    layout.paddingRight(u(2));
-                });
-            });
-                toggle.setOn(popup == wantPopup, false);
-                toggle.setOnToggleChanged(isOn -> {
-                    if (Boolean.TRUE.equals(isOn)) {
-                        switchMenuMode(root, wantPopup);
-                    }
-                });
-                modeGroup.addChild(toggle);
-            }
-            viewPopover.addChild(modeGroup);
-        }
+        // Theme selection lives in the Settings tab only (T8) — it is a
+        // persisted preference, not a view option, so the View popover is the
+        // scale presets + Autoscale. There is no mode switch: the menu always
+        // opens as the popup overlay (the OS window is a separate surface).
 
         panel.addChild(viewPopover);
         root.viewPopover = viewPopover;
@@ -553,14 +579,21 @@ public class GinvMenuScreen extends ModularUIScreen {
         // so open/close no longer perturbs the root's size and only a real
         // resize/rebuild closes.
         root.addEventListener(UIEvents.MOUSE_DOWN, event -> {
-            if (event.button != 0 || !root.viewOpen) return;
-            if (within(root.viewAnchor, event.x, event.y)
-                    || within(root.viewPopover, event.x, event.y)
-                    || inSubtree(root.viewAnchor, event.target)
-                    || inSubtree(root.viewPopover, event.target)) {
-                return;
+            if (event.button != 0) return;
+            if (root.viewOpen
+                    && !(within(root.viewAnchor, event.x, event.y)
+                        || within(root.viewPopover, event.x, event.y)
+                        || inSubtree(root.viewAnchor, event.target)
+                        || inSubtree(root.viewPopover, event.target))) {
+                hideViewPopover(root);
             }
-            hideViewPopover(root);
+            if (root.listsFilterOpen
+                    && !(within(root.listsFilterMenu, event.x, event.y)
+                        || within(root.listsFilterPopover, event.x, event.y)
+                        || inSubtree(root.listsFilterMenu, event.target)
+                        || inSubtree(root.listsFilterPopover, event.target))) {
+                hideListsFilterPopover(root);
+            }
         });
         root.addEventListener(UIEvents.LAYOUT_CHANGED, event -> {
             float width = root.getSizeWidth();
@@ -573,25 +606,20 @@ public class GinvMenuScreen extends ModularUIScreen {
             if (resized && root.viewOpen) hideViewPopover(root);
         });
 
-        // Tabs: Control | Lists | Monitor | Settings ----------------------
-        // Body region owns the vertical grow (office.lss .ginv-body) so tall
-        // tab content scrolls instead of pushing the status bar off-card.
-        TabView tabView = new TabView();
-        tabView.layout(layout -> layout.widthPercent(100));
-        UIElement body = new UIElement();
-        body.addClass("ginv-body");
-        body.layout(layout -> layout.gapAll(u(4)));
-        body.addChild(tabView);
-        panel.addChild(body);
-
-        List<Tab> tabs = new ArrayList<>();
-        addTab(tabView, tabs, "Control", controlTab(root, feedbackLabel));
-        addTab(tabView, tabs, "Lists", listsTab(root));
-        addTab(tabView, tabs, "Monitor", monitorTab(root));
-        addTab(tabView, tabs, "Settings", settingsTab(root, feedbackLabel));
-        root.tabs = tabs;
-        if (savedTab > 0 && savedTab < tabs.size()) {
-            tabView.selectTab(tabs.get(savedTab));
+        // Pages: Control | Lists | Settings -------------------------------
+        // One encapsulated tabbed card (GinvPageHost): the tab bar and each
+        // page body share a single widget/surface, so the bar reads as part of
+        // it rather than a detached strip. The body region owns the vertical
+        // grow so tall page content scrolls instead of pushing the status bar
+        // off-card.
+        GinvPageHost pageHost = new GinvPageHost(u(SPACE_4), u(SPACE_3));
+        pageHost.addPage("control", "Control", controlTab(root, feedbackLabel));
+        pageHost.addPage("lists", "Lists", listsTab(root));
+        pageHost.addPage("settings", "Settings", settingsTab(root, feedbackLabel));
+        panel.addChild(pageHost);
+        root.pageHost = pageHost;
+        if (savedTab > 0 && savedTab < pageHost.pages().size()) {
+            pageHost.select(savedTab);
         }
 
         // Status bar -----------------------------------------------------
@@ -605,14 +633,14 @@ public class GinvMenuScreen extends ModularUIScreen {
         UIElement statusBar = new UIElement();
         statusBar.setId("ginv_statusbar");
         statusBar.addClass("ginv-statusbar");
-        // Geometry is Java-owned (D6); office.lss keeps row/flex, paint and
+        // Geometry is Java-owned (D6); office-dusk.lss keeps row/flex, paint and
         // the overflow guard (clip: scissor).
         statusBar.layout(layout -> {
             layout.widthPercent(100);
-            layout.height(u(13));
-            layout.minHeight(u(13));
-            layout.paddingHorizontal(u(4));
-            layout.gapAll(u(4));
+            layout.height(u(16));
+            layout.minHeight(u(16));
+            layout.paddingHorizontal(u(SPACE_3));
+            layout.gapAll(u(SPACE_2));
         });
         statusLabel.layout(layout -> {
             layout.flexGrow(1);
@@ -620,7 +648,9 @@ public class GinvMenuScreen extends ModularUIScreen {
         });
         feedbackLabel.layout(layout -> layout.minWidth(0));
         statusBar.addChildren(statusLabel, feedbackLabel);
-        panel.addChild(statusBar);
+        // The footer is the bottom band of the page document, so the page host
+        // owns it (a shrink-0 child after the TabView) rather than the panel.
+        pageHost.setFooter(statusBar);
 
         // Hand the live widgets to the refresh loop (GinvRoot.screenTick runs in
         // both screen and windowed contexts) and snapshot the change tokens.
@@ -630,19 +660,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         root.lastTargets = List.copyOf(GinvCommand.getGinvTargets());
         root.lastGuiScale = windowed ? mcGuiScale() : 1;
 
-        return new Layout(root, panel);
-    }
-
-    private static void addTab(TabView tabView, List<Tab> tabs, String name, UIElement content) {
-        Tab tab = new Tab().setText(name);
-        String slug = name.toLowerCase(Locale.ROOT);
-        // Stable ids/classes so the uitest scenarios can target tabs and panes.
-        tab.setId("ginv_tab_" + slug);
-        tab.addClass("ginv_tab");
-        content.setId("ginv_pane_" + slug);
-        content.addClass("ginv_pane");
-        tabs.add(tab);
-        tabView.addTab(tab, content);
+        return new Layout(root, panel, base);
     }
 
     // ------------------------------------------------------- section builders
@@ -657,13 +675,13 @@ public class GinvMenuScreen extends ModularUIScreen {
         // State banner: dot + RUNNING/STOPPED · N pending, live every tick.
         UIElement banner = new UIElement();
         banner.addClass("ginv-banner");
-        // Geometry is Java-owned (D6); office.lss keeps row/flex and paint.
+        // Geometry is Java-owned (D6); office-dusk.lss keeps row/flex and paint.
         banner.layout(layout -> {
             layout.widthPercent(100);
             layout.height(u(16));
             layout.minHeight(u(16));
-            layout.paddingHorizontal(u(6));
-            layout.gapAll(u(3));
+            layout.paddingHorizontal(u(SPACE_3));
+            layout.gapAll(u(SPACE_2));
         });
         UIElement dot = new UIElement();
         dot.layout(layout -> {
@@ -698,7 +716,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         });
         hero.textStyle(style -> style.fontSize(u(11)).textShadow(true).adaptiveHeight(true));
         // Red STOP ⇄ green RESUME surfaces come from the hero state classes in
-        // office.lss; screenTick flips them when freeze toggles (B/§4).
+        // office-dusk.lss; screenTick flips them when freeze toggles (B/§4).
         hero.addClass("ginv-hero");
         setHeroState(hero, GinvCommand.isFrozen());
         hero.setOnClick(event -> {
@@ -714,7 +732,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         content.addChild(hero);
 
         // --- queue section ---
-        content.addChild(sectionTitle("Queue"));
+        content.addChild(sectionHeader("Queue"));
 
         TextField nameField = new TextField().setAnyString();
         nameField.setId("ginv_name_input");
@@ -738,6 +756,9 @@ public class GinvMenuScreen extends ModularUIScreen {
                 return;
             }
             GinvCommand.queueAndSchedule(parsed);
+            for (String name : parsed) {
+                GinvDataStore.touch(name);
+            }
             feedback(feedbackLabel, "Queued " + parsed.size() + " invites.", FeedbackKind.OK);
             nameField.setText("");
         });
@@ -790,18 +811,18 @@ public class GinvMenuScreen extends ModularUIScreen {
         root.lastCaption = levelCaption();
         Label rangeLabel = caption(root.lastCaption);
         rangeLabel.setId("ginv_range");
+        rangeLabel.setVisible(!root.lastCaption.isEmpty());
         root.rangeLabel = rangeLabel;
         root.lastCanQueue = canQueueByLevel();
         queueLevel.setActive(root.lastCanQueue);
         content.addChild(rangeLabel);
 
         // --- current targets (bare /ginv, with per-row remove) ---
-        UIElement targetsHeaderRow = row(u(16));
         Label targetsHeader = sectionTitle(root.lastHeader = "Current targets ("
                 + GinvCommand.getGinvTargets().size() + ")");
         targetsHeader.setId("ginv_targets_header");
         targetsHeader.layout(layout -> {
-            layout.flexGrow(1);
+            layout.flexShrink(1);
             layout.minWidth(0);
         });
         root.targetsHeader = targetsHeader;
@@ -815,85 +836,170 @@ public class GinvMenuScreen extends ModularUIScreen {
             GinvCommand.clearTargets();
             feedback(feedbackLabel, "Targets cleared.", FeedbackKind.OK);
         });
-        targetsHeaderRow.addChildren(targetsHeader, clearButton);
+        UIElement targetsHeaderRow = sectionRow(targetsHeader, clearButton, SPACE_2);
         content.addChild(targetsHeaderRow);
 
-        ScrollerView targetsScroll = new ScrollerView();
-        targetsScroll.layout(layout -> {
-            layout.widthPercent(100);
-            layout.flexGrow(1);
-        });
-        fillTargetsScroll(targetsScroll, collectLevels());
-        root.targetsScroll = targetsScroll;
-        content.addChild(targetsScroll);
+        GinvTable targetsTable = new GinvTable(targetColumns(), u(18), u(3), u(14));
+        fillTargetsTable(targetsTable, collectLevels());
+        root.targetsTable = targetsTable;
+        content.addChild(targetsTable);
 
         return content;
     }
 
-    /** Lists tab — add by name, whitelist/blacklist rows, now with queue buttons. */
+    // ------------------------------------------------------------- columns
+
+    /**
+     * Control target rows carry the invite count/last-invite age inline (the
+     * per-player stats the removed Monitor tab used to own), so the count lives
+     * with the queue that produced it.
+     */
+    private static List<GinvTable.Column> targetColumns() {
+        return List.of(
+                new GinvTable.Column("name", "Player", 0, true, AlignItems.FLEX_START),
+                new GinvTable.Column("count", "Invited", u(52), false, AlignItems.FLEX_END),
+                new GinvTable.Column("action", "", u(14), false, AlignItems.CENTER));
+    }
+
+    private static List<GinvTable.Column> listColumns() {
+        return List.of(
+                new GinvTable.Column("name", "Player", 0, true, AlignItems.FLEX_START),
+                new GinvTable.Column("white", "", u(14), false, AlignItems.CENTER),
+                new GinvTable.Column("black", "", u(14), false, AlignItems.CENTER),
+                new GinvTable.Column("remove", "", u(14), false, AlignItems.CENTER));
+    }
+
+    /** Lists tab — search/LVL filter, whitelist/blacklist rows. */
     private static UIElement listsTab(GinvRoot root) {
-        TextField nameField = new TextField().setAnyString();
-        nameField.textFieldStyle(style -> style
-                .placeholder(Component.literal("Player name"))
+        // Search + a concealed inclusive LVL range. The level fields allow an
+        // empty value (= unset): a numeric validator that rejects "" could
+        // never be cleared, so parsing decides instead (ListsFilter.parse).
+        TextField searchField = new TextField().setAnyString();
+        searchField.setId("ginv_lists_search");
+        searchField.textFieldStyle(style -> style
+                .placeholder(Component.literal("Search players…"))
                 .fontSize(u(10)));
-        nameField.layout(layout -> {
+        searchField.layout(layout -> {
             layout.flexGrow(1);
             layout.minWidth(0);
             layout.height(u(16));
         });
 
-        Button addButton = new Button();
-        addButton.setText("Add");
-        addButton.layout(layout -> layout.height(u(16)));
-        addButton.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
-        addButton.setOnClick(event -> {
-            String raw = nameField.getValue() == null ? "" : nameField.getValue().trim();
-            if (raw.isEmpty()) return;
-            if (GinvDataStore.touch(raw)) {
-                nameField.setText("");
-            } else {
-                nameField.setText(raw);
-            }
+        TextField minLevelField = levelFilterField("ginv_lists_level_min", "min");
+        TextField maxLevelField = levelFilterField("ginv_lists_level_max", "max");
+
+        Button filterMenu = new Button();
+        filterMenu.setId("ginv_lists_filter_menu");
+        filterMenu.setText("LVL ▾");
+        filterMenu.layout(layout -> {
+            layout.width(u(34));
+            layout.height(u(16));
         });
+        filterMenu.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+        filterMenu.getStyle().tooltips("Filter by guild level");
 
-        UIElement addRow = row(u(16));
-        addRow.addChildren(nameField, addButton);
-
-        ScrollerView listsScroll = new ScrollerView();
-        listsScroll.layout(layout -> {
+        // Concealed disclosure, revealed in flow by the LVL button. It reuses
+        // the popover paint class for the raised ring (D6: no new theme rule),
+        // but pins positionType to RELATIVE inline — an absolute overlay inside
+        // the table's ScrollerView pane does not paint above the scroll surface.
+        UIElement filterPopover = new UIElement();
+        filterPopover.setId("ginv_lists_filter_popover");
+        filterPopover.addClass("ginv-popover");
+        filterPopover.layout(layout -> {
+            layout.positionType(TaffyPosition.RELATIVE);
             layout.widthPercent(100);
-            layout.flexGrow(1);
+            layout.paddingAll(u(SPACE_4));
+            layout.gapAll(u(SPACE_2));
         });
-        fillListsScroll(listsScroll, collectLevels());
-        root.listsScroll = listsScroll;
+        filterPopover.setDisplay(false);
+        UIElement levelRow = row(u(16));
+        // Center the min-dash-max cluster in the full-width panel.
+        levelRow.layout(layout -> layout.justifyContent(AlignContent.CENTER));
+        levelRow.addChildren(minLevelField, dashLabel(), maxLevelField);
+        filterPopover.addChild(levelRow);
+
+        Button clearFilter = new Button();
+        clearFilter.setId("ginv_lists_filter_clear");
+        clearFilter.setText("Clear");
+        clearFilter.layout(layout -> {
+            layout.width(u(40));
+            layout.height(u(16));
+        });
+        clearFilter.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+        clearFilter.setOnClick(event -> {
+            searchField.setText("");
+            minLevelField.setText("");
+            maxLevelField.setText("");
+        });
+
+        UIElement filterRow = row(u(16));
+        filterRow.addChildren(searchField, filterMenu, clearFilter);
+
+        UIElement filterWrapper = new UIElement();
+        filterWrapper.layout(layout -> {
+            layout.widthPercent(100);
+            layout.flexDirection(FlexDirection.COLUMN);
+            layout.positionType(TaffyPosition.RELATIVE);
+            // Section break: tabColumn gap (6u) + 2u = 8u above the table.
+            layout.marginBottom(u(SPACE_1));
+        });
+        filterWrapper.addChildren(filterRow, filterPopover);
+
+        root.listsSearchField = searchField;
+        root.listsMinLevelField = minLevelField;
+        root.listsMaxLevelField = maxLevelField;
+        root.listsFilterMenu = filterMenu;
+        root.listsFilterPopover = filterPopover;
+        root.listsFilterOpen = false;
+        filterMenu.setOnClick(event -> toggleListsFilterPopover(root));
+
+        GinvTable listsTable = new GinvTable(listColumns(), u(18), u(3), u(14));
+        fillListsTable(listsTable, collectLevels(), listFilter(root));
+        root.listsTable = listsTable;
 
         UIElement content = tabColumn();
-        content.addChildren(addRow, listsScroll);
+        content.addChildren(filterWrapper, listsTable);
         return content;
     }
 
-    /** Monitor tab — per-player invite counts and last-invite times. */
-    private static UIElement monitorTab(GinvRoot root) {
-        ScrollerView monitorScroll = new ScrollerView();
-        monitorScroll.layout(layout -> {
-            layout.widthPercent(100);
-            layout.flexGrow(1);
+    /** A narrow LVL-bound field that permits an empty value (empty = unset). */
+    private static TextField levelFilterField(String id, String placeholder) {
+        TextField field = new TextField().setAnyString();
+        field.setId(id);
+        field.textFieldStyle(style -> style
+                .placeholder(Component.literal(placeholder))
+                .fontSize(u(10)));
+        field.layout(layout -> {
+            layout.width(u(30));
+            layout.height(u(16));
         });
-        fillMonitorScroll(monitorScroll, collectLevels());
-        root.monitorScroll = monitorScroll;
-
-        UIElement content = tabColumn();
-        content.addChild(monitorScroll);
-        return content;
+        return field;
     }
 
-    /** Settings tab — delays, whitelist-only, and the independent menu scale. */
+    /** Null-safe snapshot of the Lists filter controls (empty = {@link ListsFilter#EMPTY}). */
+    private static ListsFilter listFilter(GinvRoot root) {
+        if (root.listsSearchField == null
+                || root.listsMinLevelField == null
+                || root.listsMaxLevelField == null) {
+            return ListsFilter.EMPTY;
+        }
+        return ListsFilter.parse(root.listsSearchField.getValue(),
+                root.listsMinLevelField.getValue(), root.listsMaxLevelField.getValue());
+    }
+
+    /**
+     * Settings tab — sectioned layout: Invites (delay), Filtering
+     * (whitelist-only + its note), and Appearance (theme), each under an
+     * existing {@code sectionHeader} banner.
+     */
     private static UIElement settingsTab(GinvRoot root, Label feedbackLabel) {
         TextField minDelayField = new TextField().setNumbersOnlyInt(50, 60_000);
         minDelayField.setText(String.valueOf(GinvDataStore.minDelayMs()));
         minDelayField.textFieldStyle(style -> style.fontSize(u(10)));
         minDelayField.layout(layout -> {
-            layout.width(u(52));
+            layout.flexGrow(1);
+            layout.flexBasis(0);
+            layout.minWidth(0);
             layout.height(u(16));
         });
 
@@ -901,16 +1007,18 @@ public class GinvMenuScreen extends ModularUIScreen {
         maxDelayField.setText(String.valueOf(GinvDataStore.maxDelayMs()));
         maxDelayField.textFieldStyle(style -> style.fontSize(u(10)));
         maxDelayField.layout(layout -> {
-            layout.width(u(52));
+            layout.flexGrow(1);
+            layout.flexBasis(0);
+            layout.minWidth(0);
             layout.height(u(16));
         });
 
         Button applyButton = new Button();
         applyButton.setText("Apply");
         applyButton.layout(layout -> {
+            layout.width(u(48));
             layout.height(u(16));
-            layout.flexGrow(1);
-            layout.minWidth(0);
+            layout.flexShrink(0);
         });
         applyButton.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         applyButton.setOnClick(event -> {
@@ -926,22 +1034,19 @@ public class GinvMenuScreen extends ModularUIScreen {
             }
         });
 
-        Label delayLabel = bodyLabel("Delay (ms):");
-        delayLabel.layout(layout -> {
-            layout.flexGrow(1);
-            layout.minWidth(0);
-        });
+        Label delayLabel = bodyLabel("Invite delay (ms)");
+        // Plain element, not .ginv-ctl: that class is flex-shrink: 0, which
+        // would stop the cluster shrinking at the narrow popup width.
         UIElement delayCtl = new UIElement();
-        delayCtl.addClass("ginv-ctl");
+        delayCtl.setId("ginv_setting_delay");
         delayCtl.layout(layout -> {
             layout.flexDirection(FlexDirection.ROW);
             layout.alignItems(AlignItems.CENTER);
             layout.gapColumn(u(4));
-            layout.width(u(165));
+            layout.flexGrow(1);
+            layout.minWidth(0);
         });
         delayCtl.addChildren(minDelayField, dashLabel(), maxDelayField, applyButton);
-        UIElement delayRow = row(u(16));
-        delayRow.addChildren(delayLabel, delayCtl);
 
         Switch whitelistSwitch = new Switch();
         whitelistSwitch.setOn(GinvDataStore.whitelistOnly(), false);
@@ -950,28 +1055,68 @@ public class GinvMenuScreen extends ModularUIScreen {
         whitelistSwitch.getStyle().tooltips("Only invite whitelisted players");
         root.whitelistSwitch = whitelistSwitch;
 
-        Label whitelistLabel = bodyLabel("Whitelist-only mode");
-        whitelistLabel.layout(layout -> {
-            layout.flexGrow(1);
-            layout.minWidth(0);
-        });
-        UIElement whitelistCtl = new UIElement();
-        whitelistCtl.addClass("ginv-ctl");
-        whitelistCtl.layout(layout -> {
-            layout.flexDirection(FlexDirection.ROW);
-            layout.alignItems(AlignItems.CENTER);
-            layout.justifyContent(AlignContent.FLEX_END);
-            layout.width(u(165));
-        });
-        whitelistCtl.addChild(whitelistSwitch);
-        UIElement whitelistRow = row(u(16));
-        whitelistRow.addChildren(whitelistLabel, whitelistCtl);
+        Label whitelistLabel = bodyLabel("Whitelist only");
 
-        Label hintLabel = caption("Blacklist always blocks; whitelist-only limits invites.");
+        Label hintLabel = captionWrapped("Only whitelisted players are invited. Blacklisted players are always blocked.");
+
+        // Theme selector: the only theme picker (View popover no longer has
+        // one). A native LDLib2 Selector dropdown — a component, not a row of
+        // toggle buttons — over the palettes whose generated delta ships, so a
+        // base swap can never land on a missing palette. A change persists then
+        // rebuilds via the proven pendingScaleRebuild path (screen or OS window
+        // in place). Geometry is Java-owned (D6); the sheet owns only paint.
+        GinvTheme active = activeTheme();
+        Label themeLabel = bodyLabel("Theme");
+        List<GinvTheme> shippedThemes = new ArrayList<>();
+        for (GinvTheme candidate : GinvTheme.values()) {
+            if (candidate.hasDelta()) {
+                shippedThemes.add(candidate);
+            }
+        }
+        Selector<GinvTheme> themeSelector = new Selector<>();
+        themeSelector.setId("ginv_settings_theme");
+        themeSelector.addClass("ginv-theme-select");
+        themeSelector.setCandidateUIProvider(GinvMenuScreen::themeOptionLabel);
+        themeSelector.setCandidates(shippedThemes);
+        themeSelector.setSelected(active, false);
+        themeSelector.setOnValueChanged(value -> {
+            if (value != null) {
+                GinvDataStore.setTheme(value.id());
+                root.pendingScaleRebuild = true;
+            }
+        });
+        themeSelector.layout(layout -> {
+            layout.flexGrow(1);
+            layout.flexShrink(1);
+            layout.flexBasis(0);
+            layout.minWidth(0);
+            layout.height(u(16));
+        });
+        // Drop the component's inline rounded surface so office.lss can square
+        // it (INLINE outranks STYLESHEET; a null value clears the slot). The
+        // dropdown dialog is reparented to the root on open, so it carries its
+        // own class for the sheet to target.
+        themeSelector.getStyle().backgroundTexture(null);
+        themeSelector.dialog.addClass("ginv-theme-dialog");
+        themeSelector.dialog.getStyle().backgroundTexture(null);
+
+        // Two-column grid so every label and every control share an edge.
+        // Full-width section banners split it into Invites / Filtering /
+        // Appearance; the whitelist note stays inside Filtering.
+        GinvSettingsForm form = new GinvSettingsForm(u(16), u(4));
+        form.setId("ginv_settings_form");
+        form.addFullWidth(sectionHeader("Invites"));
+        form.addSetting(delayLabel, delayCtl, true);
+        form.addFullWidth(sectionHeader("Filtering"));
+        form.addSetting(whitelistLabel, whitelistSwitch, false);
+        form.addNote(hintLabel);
+        form.addFullWidth(sectionHeader("Appearance"));
+        form.addSetting(themeLabel, themeSelector, true);
 
         // Menu scale + autoscale + mode moved into the View popover (T8).
+        // Keep tabColumn for the page's top padding; the form is its only child.
         UIElement content = tabColumn();
-        content.addChildren(delayRow, whitelistRow, hintLabel);
+        content.addChild(form);
         return content;
     }
 
@@ -983,7 +1128,8 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.widthPercent(100);
             layout.heightPercent(100);
             layout.flexDirection(FlexDirection.COLUMN);
-            layout.gapRow(u(4));
+            layout.gapRow(u(SPACE_3));
+            layout.paddingTop(u(SPACE_1));
         });
         return column;
     }
@@ -994,7 +1140,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         row.layout(layout -> {
             layout.flexDirection(FlexDirection.ROW);
             layout.alignItems(AlignItems.CENTER);
-            layout.gapColumn(u(4));
+            layout.gapColumn(u(SPACE_2));
             layout.widthPercent(100);
             layout.height(height);
             layout.minHeight(u(16));
@@ -1033,11 +1179,47 @@ public class GinvMenuScreen extends ModularUIScreen {
         }));
     }
 
+    private static UIElement sectionHeader(String text) {
+        return sectionRow(sectionTitle(text), null);
+    }
+
+    private static UIElement sectionRow(Label label, UIElement trailing) {
+        return sectionRow(label, trailing, 0);
+    }
+
+    private static UIElement sectionRow(Label label, UIElement trailing, double marginBottom) {
+        UIElement header = new UIElement();
+        header.addClass("ginv-section-h");
+        header.layout(layout -> {
+            layout.widthPercent(100);
+            layout.flexDirection(FlexDirection.ROW);
+            layout.alignItems(AlignItems.CENTER);
+            layout.gapColumn(u(SPACE_2));
+            layout.marginTop(u(SPACE_4));
+            layout.marginBottom(u(marginBottom));
+        });
+        UIElement rule = new UIElement();
+        rule.addClass("ginv-section-rule");
+        rule.layout(layout -> {
+            layout.flexGrow(1);
+            layout.flexShrink(1);
+            layout.minWidth(0);
+            layout.height(u(1));
+            layout.minHeight(u(1));
+        });
+        header.addChild(label);
+        header.addChild(rule);
+        if (trailing != null) {
+            header.addChild(trailing);
+        }
+        return header;
+    }
+
     private static Label sectionTitle(String text) {
         Label label = new Label();
-        label.setText(text);
+        label.setText(text.toUpperCase(Locale.ROOT));
         label.addClass("ginv-section");
-        label.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+        label.textStyle(style -> style.fontSize(u(9)).adaptiveWidth(true).adaptiveHeight(true));
         return label;
     }
 
@@ -1049,6 +1231,20 @@ public class GinvMenuScreen extends ModularUIScreen {
         return label;
     }
 
+    /**
+     * Same as {@link #caption(String)} but wraps across lines instead of
+     * clipping at the parent's right edge. Used only where a note spans the
+     * full width (the Settings filtering hint); the global caption stays
+     * single-line so short captions never reflow.
+     */
+    private static Label captionWrapped(String text) {
+        Label label = new Label();
+        label.setText(text);
+        label.addClass("ginv-caption");
+        label.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true).textWrap(TextWrap.WRAP));
+        return label;
+    }
+
     private static Label bodyLabel(String text) {
         Label label = new Label();
         label.setText(text);
@@ -1057,15 +1253,38 @@ public class GinvMenuScreen extends ModularUIScreen {
         return label;
     }
 
+    /**
+     * Theme Selector option: the dropdown row and the collapsed value preview
+     * both read {@link GinvTheme#displayName()}. Size is Java-owned (D6); the
+     * sheet owns the ink via the shared label rule.
+     */
+    private static Label themeOptionLabel(GinvTheme candidate) {
+        Label label = new Label();
+        label.setText(candidate == null ? "---" : candidate.displayName());
+        label.addClass("ginv-theme-option");
+        label.textStyle(style -> style
+                .fontSize(u(10))
+                .adaptiveHeight(true)
+                .textAlignHorizontal(Horizontal.LEFT)
+                .textAlignVertical(Vertical.CENTER));
+        return label;
+    }
+
     private static Label dashLabel() {
         Label dash = new Label();
         dash.setText("-");
         dash.addClass("ginv-caption");
-        dash.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+        dash.textStyle(style -> style
+                .fontSize(u(10))
+                .adaptiveHeight(true)
+                .textAlignHorizontal(Horizontal.CENTER)
+                .textAlignVertical(Vertical.CENTER));
+        // Fixed width so the glyph is equidistant from the two fields.
+        dash.layout(layout -> layout.width(u(10)));
         return dash;
     }
 
-    /** Semantic feedback tint; office.lss maps each kind to a paper token. */
+    /** Semantic feedback tint; office-dusk.lss maps each kind to a paper token. */
     private enum FeedbackKind {
         INFO, OK, WARN, ERR
     }
@@ -1118,97 +1337,79 @@ public class GinvMenuScreen extends ModularUIScreen {
         return cut.isEmpty() ? ellipsis : cut + ellipsis;
     }
 
-    // ------------------------------------------------------- player rows
+    // ------------------------------------------------------- table cells
 
     /**
-     * One player row: head, name, guild-level badge, optional invite count,
-     * optional queue-now button, then the W/B/X list buttons.
+     * The first table column's cell: a player head followed by the vanilla-font
+     * name and the guild-level badge, so the level hugs the player it belongs
+     * to instead of the trailing action cluster.
      */
-    private static UIElement buildPlayerRow(String name, GinvDataStore.PlayerSnapshot snapshot,
-                                            boolean withCount, GuildLevels.LevelInfo level,
-                                            boolean withQueue) {
-        GinvDataStore.ListState state = snapshot == null
-                ? GinvDataStore.ListState.NONE
-                : snapshot.listState();
-
-        UIElement row = new UIElement();
-        row.setId("ginv_row");
-        row.layout(layout -> {
+    private static UIElement nameCell(String name, GuildLevels.LevelInfo level) {
+        UIElement cell = new UIElement();
+        cell.layout(layout -> {
             layout.flexDirection(FlexDirection.ROW);
             layout.alignItems(AlignItems.CENTER);
             layout.gapColumn(u(3));
-            layout.widthPercent(100);
-            layout.height(u(16));
+            layout.minWidth(0);
         });
-
         UIElement head = new UIElement();
         head.layout(layout -> {
             layout.width(u(10));
             layout.height(u(10));
+            layout.flexShrink(0);
         });
         head.getStyle().backgroundTexture(new PlayerHeadTexture(name));
-
         Label nameLabel = new Label();
         nameLabel.setText(name);
-        nameLabel.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+        nameLabel.addClass("ginv-name");
+        nameLabel.textStyle(style -> style.font(VANILLA_FONT).fontSize(u(10))
+                .adaptiveWidth(true).adaptiveHeight(true));
         nameLabel.layout(layout -> {
-            layout.flexGrow(1);
+            layout.flexShrink(1);
             layout.minWidth(0);
         });
+        Label badge = levelBadge(level);
+        badge.addClass("ginv-level");
+        cell.addChildren(head, nameLabel, badge);
+        return cell;
+    }
 
-        row.addChildren(head, nameLabel, levelBadge(level));
-
-        if (withCount && snapshot != null) {
-            String count = "×" + snapshot.invites();
+    /**
+     * Target column: invite count and last-invite age, right-aligned. A player
+     * with no recorded invites yet (or no persisted snapshot at all) shows a
+     * muted dash instead of a misleading {@code ×0}.
+     */
+    private static UIElement countCell(GinvDataStore.PlayerSnapshot snapshot) {
+        String count;
+        if (snapshot == null || snapshot.invites() <= 0) {
+            count = "—";
+        } else {
+            count = "×" + snapshot.invites();
             if (snapshot.lastInviteMs() > 0) {
                 count += " · " + ago(snapshot.lastInviteMs());
             }
-            Label countLabel = new Label();
-            countLabel.setText(count);
-            countLabel.addClass("ginv-muted");
-            countLabel.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
-            row.addChildren(countLabel);
         }
+        Label label = new Label();
+        label.setText(count);
+        label.addClass("ginv-muted");
+        label.textStyle(style -> style.font(VANILLA_FONT).fontSize(u(9))
+                .textAlignHorizontal(Horizontal.RIGHT).adaptiveHeight(true));
+        label.layout(layout -> {
+            layout.widthPercent(100);
+            layout.minWidth(0);
+        });
+        return label;
+    }
 
-        if (withQueue) {
-            row.addChildren(listButton("⚡", null,
-                    "Queue an invite for this player now",
-                    () -> GinvCommand.queueAndSchedule(List.of(name))));
-        }
-
-        row.addChildren(
-                listButton("W", state == GinvDataStore.ListState.WHITE
-                                ? "ginv-list-white" : null,
-                        "Whitelist player", () -> {
-                            GinvDataStore.PlayerSnapshot current = GinvDataStore.snapshot(name);
-                            GinvDataStore.ListState currentState = current == null
-                                    ? GinvDataStore.ListState.NONE
-                                    : current.listState();
-                            GinvDataStore.setListState(name,
-                                    currentState == GinvDataStore.ListState.WHITE
-                                            ? GinvDataStore.ListState.NONE
-                                            : GinvDataStore.ListState.WHITE);
-                        }),
-                listButton("B", state == GinvDataStore.ListState.BLACK
-                                ? "ginv-list-black" : null,
-                        "Blacklist player (always blocks invites)", () -> {
-                            GinvDataStore.PlayerSnapshot current = GinvDataStore.snapshot(name);
-                            GinvDataStore.ListState currentState = current == null
-                                    ? GinvDataStore.ListState.NONE
-                                    : current.listState();
-                            GinvDataStore.setListState(name,
-                                    currentState == GinvDataStore.ListState.BLACK
-                                            ? GinvDataStore.ListState.NONE
-                                            : GinvDataStore.ListState.BLACK);
-                        }),
-                listButton("X", null,
-                        "Remove record and unqueue", () -> {
-                            GinvDataStore.removePlayer(name);
-                            GinvCommand.removeFromQueue(name);
-                        })
-        );
-
-        return row;
+    /** Flips a player's list state to {@code target}, or clears it if already set. */
+    private static void toggleList(String name, GinvDataStore.ListState target) {
+        GinvDataStore.PlayerSnapshot current = GinvDataStore.snapshot(name);
+        GinvDataStore.ListState currentState = current == null
+                ? GinvDataStore.ListState.NONE
+                : current.listState();
+        GinvDataStore.setListState(name, currentState == target
+                ? GinvDataStore.ListState.NONE
+                : target);
     }
 
     /** {@code [42]} in the server's prefix color, or a muted dash when unknown. */
@@ -1217,29 +1418,35 @@ public class GinvMenuScreen extends ModularUIScreen {
         if (level == null) {
             badge.setText("—");
             badge.addClass("ginv-muted");
-            badge.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
+            badge.textStyle(style -> style.font(VANILLA_FONT).fontSize(u(9))
+                    .adaptiveWidth(true).adaptiveHeight(true));
         } else {
             badge.setText("[" + level.value() + "]");
-            badge.textStyle(style -> style.fontSize(u(9)).textColor(level.color()).adaptiveHeight(true));
+            badge.textStyle(style -> style.font(VANILLA_FONT)
+                    .fontSize(u(10)).textColor(level.color())
+                    .adaptiveWidth(true).adaptiveHeight(true));
         }
-        badge.layout(layout -> layout.width(u(16)));
+        badge.layout(layout -> layout.flexShrink(0));
         badge.getStyle().tooltips("Guild level");
         return badge;
     }
 
-    private static Button listButton(String text, String activeClass,
-                                     String tooltip, Runnable action) {
+    /**
+     * Row action button rendered as a bare icon: no border, transparent at rest
+     * (hover/pressed feedback comes from the class). An {@code activeClass} of
+     * {@code null} uses {@code ginv-chrome}; the active whitelist/blacklist tint
+     * is added <em>instead of</em> chrome — the sheet defines {@code .ginv-chrome}
+     * later, so stacking both would drop the green/red fill.
+     */
+    private static Button iconListButton(String activeClass, IGuiTexture icon,
+                                         String tooltip, Runnable action) {
         Button button = new Button();
-        button.setText(text);
-        if (activeClass != null) {
-            // Active W/B states read as a saturated tint via a semantic class;
-            // idle buttons keep the sheet's default surface and ink.
-            button.addClass(activeClass);
-        }
-        button.text.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+        button.noText().addPreIcon(icon);
+        button.addClass(activeClass != null ? activeClass : "ginv-chrome");
         button.layout(layout -> {
             layout.width(u(14));
             layout.height(u(16));
+            layout.flexShrink(0);
         });
         button.getStyle().tooltips(tooltip);
         button.setOnClick(event -> action.run());
@@ -1252,14 +1459,6 @@ public class GinvMenuScreen extends ModularUIScreen {
         if (seconds < 3600) return (seconds / 60) + "m";
         if (seconds < 86400) return (seconds / 3600) + "h";
         return (seconds / 86400) + "d";
-    }
-
-    private static Label emptyRow(String text) {
-        Label label = new Label();
-        label.setText(text);
-        label.addClass("ginv-empty");
-        label.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true));
-        return label;
     }
 
     // --------------------------------------------------------- rebuilding
@@ -1282,74 +1481,67 @@ public class GinvMenuScreen extends ModularUIScreen {
         return levels;
     }
 
-    private static void fillListsScroll(ScrollerView scroll, Map<String, GuildLevels.LevelInfo> levels) {
+    private static void fillListsTable(GinvTable table, Map<String, GuildLevels.LevelInfo> levels,
+                                       ListsFilter filter) {
+        table.clearRows();
         List<String> names = collectNames();
-        scroll.clearAllScrollViewChildren();
         if (names.isEmpty()) {
-            scroll.addScrollViewChildren(emptyRow("No players."));
+            table.addEmpty("No players.");
             return;
         }
+        List<String> matched = new ArrayList<>();
         for (String name : names) {
-            scroll.addScrollViewChildren(buildPlayerRow(name, GinvDataStore.snapshot(name),
-                    false, levels.get(name), true));
+            GuildLevels.LevelInfo level = levels.get(name);
+            if (filter.matches(name, level == null ? null : level.value())) {
+                matched.add(name);
+            }
         }
-    }
-
-    private static void fillMonitorScroll(ScrollerView scroll, Map<String, GuildLevels.LevelInfo> levels) {
-        List<GinvDataStore.PlayerSnapshot> snapshots = new ArrayList<>(GinvDataStore.snapshots());
-        snapshots.sort(Comparator
-                .comparingInt(GinvDataStore.PlayerSnapshot::invites).reversed()
-                .thenComparing(GinvDataStore.PlayerSnapshot::name,
-                        String.CASE_INSENSITIVE_ORDER));
-        scroll.clearAllScrollViewChildren();
-        if (snapshots.isEmpty()) {
-            scroll.addScrollViewChildren(emptyRow("No invites recorded yet."));
+        if (matched.isEmpty()) {
+            table.addEmpty("No players match.");
             return;
         }
-        for (GinvDataStore.PlayerSnapshot snapshot : snapshots) {
-            scroll.addScrollViewChildren(buildPlayerRow(snapshot.name(), snapshot,
-                    true, levels.get(snapshot.name()), false));
+        for (String name : matched) {
+            GinvDataStore.PlayerSnapshot snapshot = GinvDataStore.snapshot(name);
+            GinvDataStore.ListState state = snapshot == null
+                    ? GinvDataStore.ListState.NONE
+                    : snapshot.listState();
+            table.addRow(null,
+                    nameCell(name, levels.get(name)),
+                    iconListButton(state == GinvDataStore.ListState.WHITELIST
+                                    ? "ginv-list-white" : null,
+                            WHITELIST_ICON,
+                            "Whitelist player",
+                            () -> toggleList(name, GinvDataStore.ListState.WHITELIST)),
+                    iconListButton(state == GinvDataStore.ListState.BLACKLIST
+                                    ? "ginv-list-black" : null,
+                            BLACKLIST_ICON,
+                            "Blacklist player (always blocks invites)",
+                            () -> toggleList(name, GinvDataStore.ListState.BLACKLIST)),
+                    iconListButton(null, BOLT_ICON, "Remove record and unqueue", () -> {
+                        GinvDataStore.removePlayer(name);
+                        GinvCommand.removeFromQueue(name);
+                    }));
         }
     }
 
-    /** Current targets with level badges and a per-row remove button. */
-    private static void fillTargetsScroll(ScrollerView scroll, Map<String, GuildLevels.LevelInfo> levels) {
+    /**
+     * Current targets with level badges, per-player invite counts and a
+     * per-row remove button. The count/last-invite stats the removed Monitor
+     * tab used to own now ride the target row that produced them.
+     */
+    private static void fillTargetsTable(GinvTable table, Map<String, GuildLevels.LevelInfo> levels) {
+        table.clearRows();
         List<String> targets = new ArrayList<>(GinvCommand.getGinvTargets());
-        scroll.clearAllScrollViewChildren();
         if (targets.isEmpty()) {
-            scroll.addScrollViewChildren(emptyRow("No targets queued. Use Queue above."));
+            table.addEmpty("No targets queued. Use Queue above.");
             return;
         }
         for (String name : targets) {
-            UIElement row = new UIElement();
-            row.setId("ginv_target_row");
-            row.layout(layout -> {
-                layout.flexDirection(FlexDirection.ROW);
-                layout.alignItems(AlignItems.CENTER);
-                layout.gapColumn(u(3));
-                layout.widthPercent(100);
-                layout.height(u(16));
-            });
-
-            UIElement head = new UIElement();
-            head.layout(layout -> {
-                layout.width(u(10));
-                layout.height(u(10));
-            });
-            head.getStyle().backgroundTexture(new PlayerHeadTexture(name));
-
-            Label nameLabel = new Label();
-            nameLabel.setText(name);
-            nameLabel.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
-            nameLabel.layout(layout -> {
-                layout.flexGrow(1);
-                layout.minWidth(0);
-            });
-
-            row.addChildren(head, nameLabel, levelBadge(levels.get(name)),
-                    listButton("X", null,
-                            "Remove from queue", () -> GinvCommand.removeFromQueue(name)));
-            scroll.addScrollViewChildren(row);
+            table.addRow("ginv_target_row",
+                    nameCell(name, levels.get(name)),
+                    countCell(GinvDataStore.snapshot(name)),
+                    iconListButton(null, BOLT_ICON, "Remove from queue",
+                            () -> GinvCommand.removeFromQueue(name)));
         }
     }
 
@@ -1370,7 +1562,7 @@ public class GinvMenuScreen extends ModularUIScreen {
     private static String statusText() {
         return "Pending: " + GinvCommand.getPendingCount()
                 + " · " + (GinvCommand.isFrozen() ? "FROZEN" : "RUNNING")
-                + " · whitelist-only " + (GinvDataStore.whitelistOnly() ? "ON" : "OFF");
+                + " · Whitelist only: " + (GinvDataStore.whitelistOnly() ? "ON" : "OFF");
     }
 
     private static String bannerText(boolean frozen) {
@@ -1383,10 +1575,15 @@ public class GinvMenuScreen extends ModularUIScreen {
                 && Minecraft.getInstance().getConnection() != null;
     }
 
-    /** Caption under the level field: precondition hint or the live tab range. */
+    /**
+     * Caption under the level field: the connection hint or the live tab range.
+     * Empty outside SkyBlock — the top-bar SkyBlock chip already carries that
+     * verdict, so the disabled queue button needs no redundant "SkyBlock only."
+     * note (an empty caption hides the label entirely).
+     */
     private static String levelCaption() {
         if (Minecraft.getInstance().getConnection() == null) return "Not connected to a server.";
-        if (!SkyBlockDetector.isSkyBlock()) return "SkyBlock only.";
+        if (!SkyBlockDetector.isSkyBlock()) return "";
         GuildLevels.LevelRange range = GuildLevels.tabRange();
         return range == null ? "tab: no leveled players"
                 : "tab: " + range.min() + "–" + range.max();
@@ -1399,7 +1596,7 @@ public class GinvMenuScreen extends ModularUIScreen {
     // -------------------------------------------------------- scale changes
 
     /**
-     * The largest scale within [0.75, 2.0] that fits the 340x266 design plus
+     * The largest scale within [1.0, 2.0] that fits the 340x266 design plus
      * margins into the current GUI-scaled viewport. Falls back to the stored
      * scale when the window reports a degenerate size. Never persisted — the
      * stored preset is untouched, so switching autoscale off restores it.
@@ -1411,14 +1608,27 @@ public class GinvMenuScreen extends ModularUIScreen {
     }
 
     /**
-     * Pure fit: viewport → scale in {@code [0.75, 2.0]}, or {@code stored}
+     * Pure fit: viewport → scale in {@code [1.0, 2.0]}, or {@code stored}
      * for a degenerate viewport. Side-effect free (T14: the no-persist
      * contract is testable headless through this signature).
      */
     static double fitScaleFor(int width, int height, double stored) {
         if (width <= 0 || height <= 0) return stored;
         double fit = Math.min(width * 0.96 / SHELL_MAX_WIDTH, height * 0.94 / SHELL_MAX_HEIGHT);
-        return Math.clamp(fit, 0.75, 2.0);
+        return Math.clamp(fit, 1.0, 2.0);
+    }
+
+    /**
+     * Pure popup-shell width clamp: the design card width, capped so the page
+     * aspect (width : height) never exceeds {@code maxAspect} at the effective
+     * (viewport-capped) height. Prevents a short/wide viewport from letterboxing
+     * the popup. Degenerate viewports return {@code designW}.
+     */
+    static float popupShellWidth(float availW, float availH, float designW, float designH,
+                                 float maxAspect) {
+        if (availW <= 0 || availH <= 0) return designW;
+        float effectiveHeight = Math.min(designH, availH * 0.94f);
+        return Math.min(designW, Math.min(availW * 0.96f, effectiveHeight * maxAspect));
     }
 
     /**
@@ -1437,7 +1647,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             hideViewPopover(root);
             return;
         }
-        // Position and size are owned by office.lss (#ginv_view_popover:
+        // Position and size are owned by office-dusk.lss (#ginv_view_popover:
         // position:absolute; right:2; top:16) and anchored to #ginv_panel,
         // which the sheet marks position: relative. No root-space left/top.
         root.viewPopover.setDisplay(true);
@@ -1450,16 +1660,20 @@ public class GinvMenuScreen extends ModularUIScreen {
         root.viewPopover.setDisplay(false);
     }
 
-    /**
-     * Rebuilds the in-game screen in the chosen mode and closes the popover.
-     * No-op outside an open {@link GinvMenuScreen} (the OS window has no mode).
-     */
-    private static void switchMenuMode(GinvRoot root, boolean toPopup) {
-        hideViewPopover(root);
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.screen instanceof GinvMenuScreen menu && menu.popup != toPopup) {
-            mc.setScreen(new GinvMenuScreen(toPopup));
+    /** Reveals the Lists LVL filter disclosure, or conceals it again. */
+    private static void toggleListsFilterPopover(GinvRoot root) {
+        if (root.listsFilterOpen) {
+            hideListsFilterPopover(root);
+            return;
         }
+        root.listsFilterPopover.setDisplay(true);
+        root.listsFilterOpen = true;
+    }
+
+    private static void hideListsFilterPopover(GinvRoot root) {
+        if (!root.listsFilterOpen) return;
+        root.listsFilterOpen = false;
+        root.listsFilterPopover.setDisplay(false);
     }
 
     /** Screen-space hit test; getPositionX/Y and event coords share that space. */
@@ -1493,18 +1707,24 @@ public class GinvMenuScreen extends ModularUIScreen {
             GinvMenuWindow fresh = rebuildActiveWindow();
             if (fresh == null) {
                 windowedUiScale = previous; // rebuild refused — keep old content in sync
-            } else if (!Double.isNaN(previous) && previous > 0 && !fresh.isMaximized()) {
-                // Maximized windows are screen-sized, not WYSIWYG-sized — leave
-                // their geometry alone; flex containers absorb the scale change.
+            } else if (!Double.isNaN(previous) && previous > 0) {
                 double factor = windowedUiScale / previous;
-                var os = fresh.window();
-                os.setSize((int) Math.round(os.getWindowWidth() * factor),
-                        (int) Math.round(os.getWindowHeight() * factor));
+                if (!fresh.isMaximized()) {
+                    // Maximized windows are screen-sized, not WYSIWYG-sized —
+                    // leave their geometry alone; flex containers absorb the
+                    // scale change.
+                    var os = fresh.window();
+                    os.setSize((int) Math.round(os.getWindowWidth() * factor),
+                            (int) Math.round(os.getWindowHeight() * factor));
+                }
+                // The resize floor tracks the new natural size — even while
+                // maximized, so a later restore resizes against the new scale.
+                fresh.scaleReflowBase(factor);
             }
         } else {
             Minecraft mc = Minecraft.getInstance();
-            if (mc.screen instanceof GinvMenuScreen menu) {
-                mc.setScreen(new GinvMenuScreen(menu.popup));
+            if (mc.screen instanceof GinvMenuScreen) {
+                mc.setScreen(new GinvMenuScreen());
             }
         }
     }
@@ -1522,7 +1742,6 @@ public class GinvMenuScreen extends ModularUIScreen {
     private static GinvMenuWindow rebuildActiveWindow() {
         GinvMenuWindow old = GinvMenuWindow.active();
         if (old == null) return null;
-        boolean popup = old.popupOrigin();
 
         int x;
         int y;
@@ -1548,10 +1767,14 @@ public class GinvMenuScreen extends ModularUIScreen {
             onTop = false;
         }
 
-        Layout layout = buildLayout(popup, true);
+        Layout layout = buildLayout(true);
         GinvMenuWindow fresh = new GinvMenuWindow(
-                new ModularUI(UI.of(layout.root(), paperSheet())), "Guild Invite Fix", popup);
+                new ModularUI(UI.of(layout.root(), layout.baseSheet())), "BWD");
         fresh.setDragArea(layout.root().titleBar);
+        // The rebuild reopens at the existing geometry, so the resize base
+        // (floor + aspect) carries over unchanged; applyUiScale scales it when
+        // the window itself is resized.
+        fresh.copyReflowBaseFrom(old);
 
         if (!fresh.open(x, y, width, height, false)) {
             return null; // no second window — keep the old one as-is
@@ -1592,9 +1815,9 @@ public class GinvMenuScreen extends ModularUIScreen {
      * closes the in-game screen.
      *
      * <p>WYSIWYG (T10): the live in-screen {@code panel} is measured
-     * <b>before</b> {@code buildLayout(popup, true)} runs — its bounds only
+     * <b>before</b> {@code buildLayout(true)} runs — its bounds only
      * exist while this screen's layout is current — and the window opens at
-     * that size (clamped to {@code ≥200×150} / {@link ModularUIWindow#MIN_*}).
+     * that size (clamped to {@code ≥200×150} / ).
      * Degenerate bounds log one line and fall back to the legacy
      * {@link #openWidth()}/{@link #openHeight()} formula.
      *
@@ -1604,8 +1827,16 @@ public class GinvMenuScreen extends ModularUIScreen {
      * and say so. The chrome buttons wire themselves to
      * {@link GinvMenuWindow#active()}, so no post-construction rewiring.
      */
-    private static void popOut(boolean popup, Label feedbackLabel, UIElement panel) {
+    private static void popOut(Label feedbackLabel, UIElement panel) {
         Minecraft mc = Minecraft.getInstance();
+
+        // A second GLFW window cannot be created while the game window is
+        // fullscreen on some platforms, so drop to windowed first, then open.
+        // The game stays windowed afterwards — the menu window is meant to sit
+        // alongside it, and silently re-fullscreening on close would be jarring.
+        if (mc.getWindow().isFullscreen()) {
+            mc.getWindow().toggleFullScreen();
+        }
 
         // Freeze the live screen's scale (× its GUI scale) for the windowed
         // rebuild before buildLayout replaces uiScaleContext — see
@@ -1628,11 +1859,15 @@ public class GinvMenuScreen extends ModularUIScreen {
                     panelW, panelH);
         }
 
-        Layout windowed = buildLayout(popup, true);
+        Layout windowed = buildLayout(true);
 
         GinvMenuWindow window = new GinvMenuWindow(
-                new ModularUI(UI.of(windowed.root(), paperSheet())), "Guild Invite Fix", popup);
+                new ModularUI(UI.of(windowed.root(), windowed.baseSheet())), "BWD");
         window.setDragArea(windowed.root().titleBar);
+        // The WYSIWYG opening size becomes the resize floor and aspect lock:
+        // the window can be zoomed up from this configuration but never below
+        // it, so the fixed layout cannot collapse.
+        window.setReflowBase(openW, openH);
         GinvMenuWindow.track(window);
 
         if (window.open(Integer.MIN_VALUE, Integer.MIN_VALUE, openW, openH, false)) {
@@ -1653,7 +1888,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         Button button = new Button();
         button.noText().addPreIcon(icon);
         // Transparent-at-rest chrome: hover/pressed tints and the close red
-        // come from office.lss via the ginv-chrome[-close] classes (B8).
+        // come from office-dusk.lss via the ginv-chrome[-close] classes (B8).
         button.addClass("ginv-chrome");
         if (closeStyle) {
             button.addClass("ginv-chrome-close");
@@ -1684,9 +1919,16 @@ public class GinvMenuScreen extends ModularUIScreen {
         Label rangeLabel;
         Label targetsHeader;
         Switch whitelistSwitch;
-        ScrollerView listsScroll;
-        ScrollerView monitorScroll;
-        ScrollerView targetsScroll;
+        GinvTable listsTable;
+        GinvTable targetsTable;
+        /** Lists filter controls; null until {@link #listsTab} builds them. */
+        TextField listsSearchField;
+        TextField listsMinLevelField;
+        TextField listsMaxLevelField;
+        /** Lists LVL filter popover (built hidden) and its anchor button. */
+        UIElement listsFilterPopover;
+        Button listsFilterMenu;
+        boolean listsFilterOpen;
         Button heroStopButton;
         Button levelQueueButton;
         /** Pop-out window drag target; also double-clicked to maximize. */
@@ -1697,8 +1939,8 @@ public class GinvMenuScreen extends ModularUIScreen {
         Button maximizeButton;
         /** Windowed only, and only when always-on-top is supported. */
         Button pinButton;
-        /** Tabs, polled for the selection worth restoring after a rebuild. */
-        List<Tab> tabs = List.of();
+        /** Encapsulated page host, polled for the tab worth restoring on rebuild. */
+        GinvPageHost pageHost;
         /** View popover overlay (D5): built hidden, positioned at open time. */
         UIElement viewPopover;
         /** Anchor the popover drops from (the top-bar View button). */
@@ -1709,7 +1951,6 @@ public class GinvMenuScreen extends ModularUIScreen {
         float lastRootHeight;
         /** Top-bar SkyBlock chip; tick flips its .ginv-sky-* state classes. */
         SkyBlockStatusElement skyChip;
-        boolean popup;
         boolean windowed;
         /**
          * {@code uiScale} changed inside a mouse event; rebuild once next tick
@@ -1721,6 +1962,8 @@ public class GinvMenuScreen extends ModularUIScreen {
         int lastVersion;
         List<String> lastOnline = List.of();
         List<String> lastTargets = List.of();
+        ListsFilter lastFilter = ListsFilter.EMPTY;
+        String lastListsFilterLabel = "";
         boolean lastFrozen;
         boolean lastSky;
         boolean lastCanQueue;
@@ -1771,8 +2014,8 @@ public class GinvMenuScreen extends ModularUIScreen {
                 setDotState(bannerDot, frozen);
             }
 
-            // SkyBlock verdict → chip .ginv-sky-on / .ginv-sky-off flip (the
-            // element moves both classes and its label text in one call).
+            // SkyBlock verdict → chip .ginv-sky-on / .ginv-sky-off flip. The
+            // label is static ("SkyBlock"); only the surface + dot recolor.
             boolean sky = SkyBlockDetector.isSkyBlock();
             if (sky != lastSky) {
                 lastSky = sky;
@@ -1787,19 +2030,35 @@ public class GinvMenuScreen extends ModularUIScreen {
             int version = GinvDataStore.version();
             List<String> online = onlineSnapshot();
             List<String> targets = List.copyOf(GinvCommand.getGinvTargets());
-            if (version != lastVersion || !online.equals(lastOnline) || !targets.equals(lastTargets)) {
+            boolean dataDirty = version != lastVersion
+                    || !online.equals(lastOnline)
+                    || !targets.equals(lastTargets);
+            // Filter edits refill only Lists; data changes also refill targets.
+            ListsFilter filter = listFilter(this);
+            boolean filterDirty = !filter.equals(lastFilter);
+            if (dataDirty || filterDirty) {
                 lastVersion = version;
                 lastOnline = online;
                 lastTargets = targets;
+                lastFilter = filter;
                 Map<String, GuildLevels.LevelInfo> levels = collectLevels();
-                fillListsScroll(listsScroll, levels);
-                fillMonitorScroll(monitorScroll, levels);
-                fillTargetsScroll(targetsScroll, levels);
+                fillListsTable(listsTable, levels, filter);
+                if (dataDirty) {
+                    fillTargetsTable(targetsTable, levels);
+                }
+            }
+            // The concealed LVL popover advertises an active level bound on its
+            // anchor button; search-only keeps the neutral caret.
+            boolean levelBound = filter.minLevel() != null || filter.maxLevel() != null;
+            String filterLabel = filter.isActive() && levelBound ? "LVL •" : "LVL ▾";
+            if (!filterLabel.equals(lastListsFilterLabel)) {
+                lastListsFilterLabel = filterLabel;
+                listsFilterMenu.setText(filterLabel);
             }
             String header = "Current targets (" + targets.size() + ")";
             if (!header.equals(lastHeader)) {
                 lastHeader = header;
-                targetsHeader.setText(header);
+                targetsHeader.setText(header.toUpperCase(Locale.ROOT));
             }
 
             statusLabel.setText(ellipsize(statusText(), statusLabel));
@@ -1820,15 +2079,11 @@ public class GinvMenuScreen extends ModularUIScreen {
             if (!caption.equals(lastCaption)) {
                 lastCaption = caption;
                 rangeLabel.setText(caption);
+                rangeLabel.setVisible(!caption.isEmpty());
             }
 
-            // Remember the selected tab so rebuilds land where the user was.
-            for (int i = 0; i < tabs.size(); i++) {
-                if (tabs.get(i).isSelected()) {
-                    savedTab = i;
-                    break;
-                }
-            }
+            // Remember the selected page so rebuilds land where the user was.
+            savedTab = pageHost.selectedIndex();
         }
     }
 }

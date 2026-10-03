@@ -7,10 +7,11 @@
   TheyCallMeAbstract/ldlib2-Architectury fork), resolved tokenless from the
   fork's public GitHub release assets (no credentials or CI secrets required)
 - Required companion dependencies: Architectury API ≥ 20.0.12 and YACL ≥ 3.9.1
-- In-game menu (`/gmenu [popup|screen]`, LDLib2 `ModularUI`) with three
-  sections: Settings (min/max invite delay, whitelist-only toggle), Lists
-  (whitelist/blacklist management) and Monitor (live queue status and
-  per-player invite counts)
+- In-game menu (`/gmenu [popup|screen]`, LDLib2 `ModularUI`) with three tabs:
+  Control (state banner, STOP/RESUME, queue by name/level, current-target list
+  with per-player invite counts), Lists (whitelist/blacklist management) and
+  Settings (min/max invite delay, whitelist-only toggle). Per-player
+  invite-count tracking lives inline on the Control target rows
 - Persistent per-player invite tracking and list membership under
   `config/guildinvitefix/` (`players.json`, `settings.json`), saved atomically
 - Player-face row icons resolved from the tab list with a default-skin fallback
@@ -40,10 +41,15 @@
   readout (the bare `/ginv` feature) with per-row remove and **Clear** —
   level queueing is disabled with an inline hint outside SkyBlock or without
   a connection
-- Guild **level badges** on player rows in Lists, Monitor and the targets
-  list, colored from the server's prefix (§ code) with a muted `—` for
+- Guild **level badges** on player rows in Lists and the targets list,
+  colored from the server's prefix (§ code) with a muted `—` for
   offline/unleveled players; the tab change token now includes levels so
-  badges refresh on level-ups; Lists rows gained a **⚡ queue-now** button
+  badges refresh on level-ups
+- **Lists tab search + filters**: a player-name search box and inclusive
+  **LVL** min/max range (each field optional; blank = unset) with a **Clear**
+  action, applied live over the tracked/online roster; an unknown-level player
+  is excluded whenever a bound is set, and an all-filtered-out list shows a
+  distinct **"No players match."** empty state
 - Independent **menu scale**: segmented 75/100/125/150/200% presets persisted
   as `uiScale` in `settings.json` (now offered in the View menu); rebuilds on
   scale or GUI-scale changes, keeping the pop-out window's position, size,
@@ -53,16 +59,20 @@
 - Shared command API layer: `GuildLevels` (level + prefix-color extraction,
   tab range) and `GinvCommand.queueByLevel`/`parseTargets` — chat commands
   and the UI render the same results; `/glvl` behavior unchanged
-- **UI test suite** — six LDLib2 uitest scenarios (`group:guildinvitefix`):
+- **UI test suite** — eight LDLib2 uitest scenarios (`group:guildinvitefix`):
   menu-open regression (deferred `/gmenu` path + element-tree/bounds
-  assertions), tab structure with per-tab screenshots, control-flow (hero
+  assertions), tab structure with per-tab screenshots (including the Settings
+  form's label/control column alignment), control-flow (hero
   STOP/RESUME, queue-by-name, scheduler → recorded sends) and level queue
   (fixture roster, skip counts, exact send order) over a **singleplayer-only
   mock invite route** (`GuildTestGateway`, throws outside dev + singleplayer),
-  scale presets with saved-tab restore, and pop-out stability (12-tick
-  instance-identity check) + re-dock through the window's real input path —
-  run with `./gradlew runClient -PldTest=mod:guildinvitefix`, report +
-  screenshots in `build/reports/lduitest/`
+  scale presets with saved-tab restore, pop-out stability (12-tick
+  instance-identity check) + re-dock through the window's real input path,
+  layout rhythm (per-column alignment/symmetry at every scale), and Lists
+  search + LVL filtering (name narrowing, inclusive bounds, no-level
+  exclusion, Clear) — run with
+  `./gradlew runClient -PldTest=mod:guildinvitefix`, report + screenshots in
+  `build/reports/lduitest/`
 - Headless JUnit tests (guild-prefix parsing, target parsing,
   `LevelQueueResult` contract) wired into `./gradlew build` via
   fabric-loader-junit
@@ -82,10 +92,9 @@
   `.ginv-sky-off` — grey outside SkyBlock, blue inside) and a **View ▾**
   menu (`ginv_view_menu` → `ginv_view_popover`) holding the scale presets
   (`ginv_scale_100` … `ginv_scale_200`), the **Autoscale** switch
-  (`ginv_autoscale`, default ON — the fitted scale is applied to the build
-  and never persisted; clicking a preset turns autoscale off) and the
-  popup/screen mode selector (`ginv_mode_group` with `ginv_mode_popup` /
-  `ginv_mode_screen`, a state-carrying no-op inside the OS window)
+  (`ginv_autoscale`, default OFF — the menu opens at exactly 100%; when on,
+  the fitted scale is applied to the build and never persisted, and clicking a
+  preset turns autoscale off)
 - **Inter** font for the menu (`assets/guildinvitefix/font/inter.json` +
   `inter.ttf`)
 - Headless JUnit for the pure scale math split out of `GinvMenuScreen`:
@@ -95,9 +104,42 @@
   verdict gating (`active && skyBlock`, `reset()` drops fixtures)
 
 ### Changed
-- Menu tabs reordered to **Control | Lists | Monitor | Settings**, with every
-  authored size routed through a single scale helper (`u()`) so both contexts
-  scale as one system
+- **Lists active state** on the whitelist/blacklist icon buttons is now a
+  semantic green/red 1px border instead of a solid fill; idle buttons stay
+  borderless
+- **Settings tab** reorganized into sectioned groups — **INVITES** (delay),
+  **FILTERING** (whitelist-only + its explanatory note) and **APPEARANCE**
+  (theme) — under the same `sectionHeader` banners the Control and Lists tabs
+  use; copy normalized to one standard (`Invite delay (ms)`, `Whitelist only`,
+  `Theme`), the note reworded to two plain sentences (*Only whitelisted players
+  are invited. Blacklisted players are always blocked.*), and the status bar now
+  reads `Whitelist only: ON/OFF`
+- **Settings tab** rebuilt on a shared two-column form (`GinvSettingsForm`):
+  labels sit in a 4/10 column and controls in a 6/10 column, so the delay
+  fields, whitelist toggle and theme picker all start at the same x, with the
+  min/max delay fields and **Apply** sharing one right edge; the theme picker
+  and whitelist toggle are now part of the same aligned form
+- **Spacing scale** applied across the whole menu: ad-hoc inline gaps and
+  paddings now snap to a documented five-step scale (`SPACE_1..SPACE_5` =
+  2/4/6/8/12 authored units, still scaled through `u()`), so the vertical
+  rhythm is consistent between pages and scales with the menu
+- **Lists toolbar** gets an explicit section break above the table (the
+  filter bar now sits 8u clear of the table header), and the concealed
+  min/max disclosure is padded to S4
+- The Lists min–max **dash** is now a fixed-width, center-aligned label, so
+  the cluster reads as a centered, evenly-gapped `[min] – [max]` group
+- **Lists tab**: the "Add player by name" row was removed; queue-by-name on
+  the Control tab now records each queued name (`GinvDataStore.touch`) so the
+  Lists roster tracks it
+- The Lists **LVL** min/max filter is concealed behind a **LVL ▾** button that
+  reveals it in flow (reusing the popover paint class; an absolute overlay did
+  not paint above the table's scroll surface); the button marks itself with a
+  **LVL •** active state when a bound is set, and the search box and **Clear**
+  stay in the bar
+- Menu tabs are **Control | Lists | Settings** (the separate Monitor tab was
+  dropped; its invite counts moved inline onto the Control target rows), with
+  every authored size routed through a single scale helper (`u()`) so both
+  contexts scale as one system
 - `/glvl` is now a thin adapter over the shared `queueByLevel` API (chat
   output unchanged)
 - Fabric Loader minimum bumped to 0.19.5 (required by LDLib2)
@@ -105,9 +147,9 @@
 - Invite delay range (default 220–720 ms) is now configurable from the menu
 - The **Settings** tab now holds only invite delays and whitelist-only mode;
   scale presets, autoscale and the popup/screen mode moved to the View menu
-- Autoscale is **on by default**: every in-screen build fits the menu into
-  the `[0.75, 2.0]` band for the current viewport without touching the
-  stored preset
+- Autoscale is **off by default**: the menu opens at exactly 100%. When
+  switched on, every in-screen build fits the menu into the `[0.75, 2.0]` band
+  for the current viewport without touching the stored preset
 - The pop-out window is **WYSIWYG**: it opens from the measured panel
   (panel px × GUI scale × framebuffer scale, floored at the platform
   minimum), with the legacy `base × scale / contentScale` kept only as the
@@ -117,6 +159,18 @@
   `ginv_close`, `ginv_always_on_top`, `ginv_view_menu` in place of
   `ginv_titlebar`, `ginv_win_close`, `ginv_pin`); the uitest scenarios and
   docs use the new contract only
+- The Lists tab drops the redundant per-row **⚡** queue button (queueing
+  stays on the Control tab) and the **W/B/X** action glyphs, so only the
+  **Player** header prints above the icon-action columns
+- Player rows now render the guild **level badge immediately after the name**
+  inside the same cell (the standalone level column is gone), so the level
+  reads with its player instead of the trailing controls; the Lists and Control
+  row actions are now **borderless icon buttons** — whitelist/blacklist pages
+  and a lightning bolt for remove — while the active whitelist/blacklist fill
+  stays green/red
+- The popped-out window now resizes as a proportional zoom of its opening
+  size, locked to the opening aspect ratio and floored at the opening
+  dimensions, so it can be enlarged but never shrunk into a collapsed layout
 
 ### Fixed
 - The documented GUI-suite command `-PldTest=mod:guildinvitefix` matched no
@@ -139,6 +193,14 @@
   remembered centre and releases without re-resolving the selector (the screen
   driver no-ops on a closed screen; the window driver refuses one, so the
   re-dock press is the whole gesture)
+- **Lists/Control tables**: a stray horizontal margin plus `width:100%` on
+  each 1px row rule pushed the scroller's content one 3u gutter past its
+  view-port, so the body always drew a horizontal scrollbar. The rule now
+  stretches to the frame minus its margins, the body is locked to vertical
+  scrolling, the view-port's base padding is reset so rows line up with the
+  header, and a long player name clips inside its fixed `1fr` column instead
+  of widening the grid. Guarded by the long-name/overflow checks in the
+  `layout_rhythm` scenario
 
 ## [1.0.0] - 2026-07-31
 

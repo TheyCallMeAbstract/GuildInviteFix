@@ -1,0 +1,56 @@
+# latte palette — LSS AARRGGBB (alpha first, 8 digits)
+# Base slots copied verbatim from LDLib2's assets/ldlib2/lss/latte.lss:
+#   bg #e8e0d5  surface #f5efe6  raised #fffcf7  hovered #efe7db  sunken #fffcf7
+#   line #1f000000 (12% black)  lineStrong #33000000 (20% black)
+#   text #2b2622  textDim #6b6055  textFaint #a1958a
+#   accent #c2703f  accentHover #d4854f  accentPressed #a85c31  accentWash #2ec2703f
+# Semantics reuse the PAPER light-authored values (never inferred from dusk),
+# warmed for latte's surfaces: buttonText matches latte's warm body ink, the
+# disabled fill is a warm grey, and togglePressed equals latte's bg (the paper
+# convention). Saturated state colours (danger/success/warn + hovers/washes),
+# scrim, thumbs, onAccent, listWhite/listBlack and close states are reused as-is.
+#
+# CONTRAST (WCAG, vs latte surface #f5efe6 unless noted):
+#   text 13.1:1   textDim 5.4:1   buttonText/raised 14.6:1
+#   accent 3.2:1 (uppercase headers)   textDim/sunken 6.0:1
+#   danger 5.0:1  success 4.8:1   warn 4.6:1
+#   danger/sunken 5.5:1  success/sunken 5.3:1  warn/sunken 5.1:1
+#   onAccent/danger 5.7:1   onAccent/success 5.4:1
+#   textFaint/raised 2.9:1 (muted empty-state only, non-body)
+#   line/lineStrong: non-text decorative hairlines (12% / 20% black)
+bg=#FFE8E0D5
+surface=#FFF5EFE6
+raised=#FFFFFCF7
+hovered=#FFEFE7DB
+sunken=#FFFFFCF7
+line=#1F000000
+rowAlt=#0F000000
+lineStrong=#33000000
+text=#FF2B2622
+textDim=#FF6B6055
+textFaint=#FFA1958A
+accent=#FFC2703F
+accentHover=#FFD4854F
+accentPressed=#FFA85C31
+accentWash=#2EC2703F
+danger=#FFC42B1C
+dangerHover=#FFD64535
+dangerPressed=#FFA82618
+success=#FF0F7B0F
+successHover=#FF159A15
+successPressed=#FF0B5E0B
+successWash=#2E0F7B0F
+warn=#FF9D5D00
+scrim=#59000000
+disabledSurface=#FFF1EBE1
+disabledBorder=#1A000000
+transparent=#00000000
+togglePressed=#FFE8E0D5
+scrollThumb=#3A000000
+scrollThumbHover=#66000000
+buttonText=#FF2B2622
+onAccent=#FFFFFFFF
+listWhite=#FF0F7B0F
+listBlack=#FFC42B1C
+closeHover=#FFC42B1C
+closePressed=#FFA82618

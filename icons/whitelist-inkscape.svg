@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg182"
+   width="341"
+   height="341"
+   viewBox="0 0 341 341"
+   sodipodi:docname="whitelist-inkscape.svg"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs186" />
+  <sodipodi:namedview
+     id="namedview184"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#505050"
+     showgrid="false"
+     inkscape:zoom="1"
+     inkscape:cx="300"
+     inkscape:cy="291.5"
+     inkscape:window-width="1920"
+     inkscape:window-height="1008"
+     inkscape:window-x="1080"
+     inkscape:window-y="1080"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g188" />
+  <g
+     inkscape:groupmode="layer"
+     inkscape:label="Image"
+     id="g188"
+     style="display:inline">
+    <path
+       style="display:inline;fill:#f8f8e5;fill-opacity:1;stroke-width:1.03551"
+       d="M 63.324715,170.5 V 30.188395 h 67.572075 67.57207 l 39.60321,39.613236 39.60321,39.613239 V 210.11324 310.81161 H 170.5 63.324715 Z"
+       id="path494"
+       sodipodi:nodetypes="ccccccccccc" />
+    <path
+       style="display:inline;fill:#cacaca;fill-opacity:1"
+       d="M 67,170.5 V 35 h 65.25487 65.25487 L 235.75487,73.254808 274,111.50962 V 208.75481 306 H 170.5 67 Z M 177.14669,291 H 261 V 237.25695 183.51389 L 234.75708,157.25695 208.51415,131 H 179.75708 151 v -5.5 -5.5 h 56.5 56.5 c 0,0 -15.59348,-17.81005 -34.65218,-37.038744 L 194.69564,48 H 137.84782 81 V 170.14246 291 Z M 119,253 v -6 h 6.5 6.5 v 6 6 h -6.5 -6.5 z m 32,0 v -6 h 35.5 35.5 v 6 6 H 186.5 151 Z m -32,-32 v -6 h 6.5 6.5 v 6 6 h -6.5 -6.5 z m 32,0 v -6 h 35.5 35.5 v 6 6 H 186.5 151 Z m -32,-32 v -6 h 6.5 6.5 v 6 6 h -6.5 -6.5 z m 32,0 v -6 h 35.5 35.5 v 6 6 H 186.5 151 Z m -32,-32 v -6 h 6.5 6.5 v 6 6 h -6.5 -6.5 z m 32,0 v -6 h 35.5 35.5 v 6 6 H 186.5 151 Z M 119,125.5 V 120 h 6.5 6.5 v 5.5 5.5 H 125.5 119 Z M 119,93 v -6 h 6.5 6.5 v 6 6 h -6.5 -6.5 z m 32,0 v -6 h 19 19 v 6 6 h -19 -19 z"
+       id="path302"
+       sodipodi:nodetypes="cccccccccccccccccccccccsccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" />
+  </g>
+  <g
+     id="g300"
+     style="display:inline" />
+</svg>

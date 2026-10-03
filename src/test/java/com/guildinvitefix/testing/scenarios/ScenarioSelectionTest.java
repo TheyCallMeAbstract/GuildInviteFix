@@ -34,7 +34,9 @@ class ScenarioSelectionTest {
             ControlFlowMockScenario.class,
             LevelQueueMockScenario.class,
             ScalePresetScenario.class,
-            PopoutStabilityRedockScenario.class);
+            PopoutStabilityRedockScenario.class,
+            LayoutRhythmScenario.class,
+            ListsFilterScenario.class);
 
     @Test
     void documentedSelectionsMatchEveryScenario() throws Exception {

@@ -1,0 +1,51 @@
+# plum palette — LSS AARRGGBB (alpha first, 8 digits)
+# Base slots copied verbatim from LDLib2's assets/ldlib2/lss/plum.lss:
+#   bg #120f16  surface #1a1621  raised #251f2e  hovered #31293c  sunken #0d0a11
+#   line #16ffffff (9% white)  lineStrong #2effffff (18% white)
+#   text #ece7f2  textDim #a89ab4  textFaint #776b82
+#   accent #e879f9  accentHover #f0a0ff  accentPressed #c65ad6  accentWash #3de879f9
+# Semantics reuse the DUSK dark-authored values verbatim: plum is a dark surface,
+# so no adjustment was required.
+#
+# CONTRAST (WCAG, semantic ink vs plum surface #1a1621 / raised #251f2e):
+#   danger 4.5/4.1  success 7.0/6.3  warn 7.1/6.3  listWhite 7.0/6.3  listBlack 4.5/4.1
+#   danger/sunken 5.0  success/sunken 7.7  warn/sunken 7.8 (feedback bar)
+#   text/surface 14.6  textDim/surface 6.7  textFaint/raised 3.2 (muted)  accent/surface 7.2
+#   onAccent/danger 3.9  onAccent/success 2.5 — large hero label only (unchanged DUSK pairing).
+#   disabledSurface/togglePressed keep DUSK's neutral #191d26/#1a1f29 fills.
+bg=#FF120F16
+surface=#FF1A1621
+raised=#FF251F2E
+hovered=#FF31293C
+sunken=#FF0D0A11
+line=#16FFFFFF
+rowAlt=#0AFFFFFF
+lineStrong=#2EFFFFFF
+text=#FFECE7F2
+textDim=#FFA89AB4
+textFaint=#FF776B82
+accent=#FFE879F9
+accentHover=#FFF0A0FF
+accentPressed=#FFC65AD6
+accentWash=#3DE879F9
+danger=#FFE5484D
+dangerHover=#FFEC6165
+dangerPressed=#FFCC3D42
+success=#FF3FB950
+successHover=#FF4FCB61
+successPressed=#FF2E9E3D
+successWash=#2E3FB950
+warn=#FFD29922
+scrim=#A6000000
+disabledSurface=#FF191D26
+disabledBorder=#0DFFFFFF
+transparent=#00000000
+togglePressed=#FF1A1F29
+scrollThumb=#3AFFFFFF
+scrollThumbHover=#66FFFFFF
+buttonText=#FFFFFFFF
+onAccent=#FFFFFFFF
+listWhite=#FF3FB950
+listBlack=#FFE5484D
+closeHover=#FFE5484D
+closePressed=#FFCC3D42

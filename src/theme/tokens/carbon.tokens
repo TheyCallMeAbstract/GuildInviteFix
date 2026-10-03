@@ -1,0 +1,52 @@
+# carbon palette — LSS AARRGGBB (alpha first, 8 digits)
+# Base slots copied verbatim from LDLib2's assets/ldlib2/lss/carbon.lss:
+#   bg #101010  surface #181818  raised #232323  hovered #2e2e2e  sunken #0a0a0a
+#   line #16ffffff (9% white)  lineStrong #2effffff (18% white)
+#   text #ededed  textDim #9a9a9a  textFaint #6b6b6b
+#   accent #f0a04b  accentHover #f7b46c  accentPressed #d98a35  accentWash #3df0a04b
+# Semantics reuse the DUSK dark-authored values verbatim: a graphite dark surface
+# is no more demanding than dusk's, so no adjustment was required.
+#
+# CONTRAST (WCAG, semantic ink vs carbon surface #181818 / raised #232323):
+#   danger 4.5/4.0  success 7.0/6.2  warn 7.0/6.2  listWhite 7.0/6.2  listBlack 4.5/4.0
+#   danger/sunken 5.1  success/sunken 7.8  warn/sunken 7.8 (feedback bar)
+#   text/surface 15.2  textDim/surface 6.3  textFaint/raised 3.0 (muted)  accent/surface 8.3
+#   onAccent/danger 3.9  onAccent/success 2.5 — large hero label only, the
+#   pre-existing DUSK pairing (white on the green resume fill), unchanged.
+#   disabledSurface/togglePressed keep DUSK's neutral #191d26/#1a1f29 fills.
+bg=#FF101010
+surface=#FF181818
+raised=#FF232323
+hovered=#FF2E2E2E
+sunken=#FF0A0A0A
+line=#16FFFFFF
+rowAlt=#0AFFFFFF
+lineStrong=#2EFFFFFF
+text=#FFEDEDED
+textDim=#FF9A9A9A
+textFaint=#FF6B6B6B
+accent=#FFF0A04B
+accentHover=#FFF7B46C
+accentPressed=#FFD98A35
+accentWash=#3DF0A04B
+danger=#FFE5484D
+dangerHover=#FFEC6165
+dangerPressed=#FFCC3D42
+success=#FF3FB950
+successHover=#FF4FCB61
+successPressed=#FF2E9E3D
+successWash=#2E3FB950
+warn=#FFD29922
+scrim=#A6000000
+disabledSurface=#FF191D26
+disabledBorder=#0DFFFFFF
+transparent=#00000000
+togglePressed=#FF1A1F29
+scrollThumb=#3AFFFFFF
+scrollThumbHover=#66FFFFFF
+buttonText=#FFFFFFFF
+onAccent=#FFFFFFFF
+listWhite=#FF3FB950
+listBlack=#FFE5484D
+closeHover=#FFE5484D
+closePressed=#FFCC3D42

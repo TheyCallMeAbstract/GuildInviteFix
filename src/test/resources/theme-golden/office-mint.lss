@@ -1,0 +1,664 @@
+// ===========================================================================
+// office.lss — dark DUSK-based mod delta for the /gmenu shell.
+//
+// Attached subtree-local on #ginv_root (GinvMenuScreen.duskSheet()), on top of
+// the LDLib2 DUSK base sheet, so every other screen stays untouched.
+// Precedence is specificity: this file only uses #ginv_* ids and .ginv-*
+// classes (plus #ginv_root-anchored internals), which out-specify dusk.lss
+// type rules. Inline layout() from Java still wins over this sheet
+// (StyleOrigin.INLINE > STYLESHEET); the sheet owns paint and unit-free
+// flex/alignment, while Java owns ALL scale-bearing geometry via u() (D6).
+//
+// TOKEN BLOCK — dusk-derived, every value 8-digit hex, alpha first.
+// LSS hex is AARRGGBB; ColorUtils.parseColor turns 6-digit values fully
+// opaque, so 8-digit is mandatory everywhere. There is no var() support in
+// LDLib2's stylesheet, so these tokens are documentation for the literals
+// used below (single source of truth at this block).
+//
+//   bg                  #FF0F1116   canvas / windowed root
+//   surface             #FF171A21   panel, panes
+//   raised              #FF212632   top bar, popover, chips, controls
+//   hovered             #FF2B3242   hover tint
+//   sunken              #FF0B0D11   status bar, inputs, viewports, unmark
+//   line                #16FFFFFF   hairline borders
+//   rowAlt              #0AFFFFFF   zebra tint for alternating table rows
+//   line/strong         #2EFFFFFF   emphasis borders
+//   text                #FFE7EAF2   default copy under #ginv_root
+//   text/dim            #FF98A0B4   captions, status, sky-off label
+//   text/faint          #FF6B7280   empty-state rows, muted counts
+//   accent              #FF7C8CFF   sections, selected tab, pressed controls
+//   accent/hover        #FF99A5FF
+//   accent/pressed      #FF6774E6
+//   accent/wash         #3D7C8CFF   banner overlay (translucent)
+//   state/danger        #FFE5484D   STOPPED dot/banner, stop hero, errors
+//   state/success       #FF3FB950   RUNNING dot/banner, resume hero, sky-on
+//   state/warn          #FFD29922   level-queue no-match feedback
+//   state/list-white    #FF3FB950   active W button
+//   state/list-black    #FFE5484D   active B button
+//   chrome/border       #2EFFFFFF   windowed title-bar underline
+//   scrim               #A6000000   screen-mode dim backdrop
+//   close/hover         #FFE5484D
+//   close/pressed       #FFCC3D42
+//
+// CONTRAST (dark pair, WCAG targets): text/surface 13.9:1, dim/surface 6.3:1,
+// faint/raised 4.4:1, accent/surface 6.0:1, danger/surface 4.9:1,
+// success/surface 5.6:1, warn/surface 8.1:1, text/sunken 15.1:1.
+//
+// SIZE DISCIPLINE (D6): the sheet is unit-free. It owns paint, flex layout,
+// alignment and the clip guard — nothing else. Every scale-bearing dimension
+// (width/height/max-*/padding/gap/font-size) lives in Java via u(), so the
+// 75–200% preset and the autoscale fit scale the whole card. The only sizing
+// declarations here are the structural zeros (min-width: 0 / min-height: 0)
+// that let flex children shrink instead of overflowing.
+// ===========================================================================
+
+// --- typography -------------------------------------------------------------
+#ginv_root text,
+#ginv_root label {
+  font: guildinvitefix:inter;
+  text-color: #FFE4ECE8;
+  text-shadow: false;
+}
+
+// TextField draws its own text: same family + ink on the sunken input face.
+#ginv_root text-field {
+  font: guildinvitefix:inter;
+  text-color: #FFE4ECE8;
+  cursor-color: #FFE4ECE8;
+  text-shadow: false;
+  background: rect(#FF090D0C, 0, 1, #16FFFFFF);
+  focus-overlay: rect(#00000000, 0, 1, #FF4ADE80);
+}
+
+// Semantic label classes added by the label helpers.
+#ginv_root .ginv-body-text {
+  text-color: #FF94A49C;
+}
+
+#ginv_root .ginv-caption {
+  text-color: #FF94A49C;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+#ginv_root .ginv-muted {
+  text-color: #FF94A49C;
+}
+
+#ginv_root .ginv-empty {
+  text-color: #FF6A7A72;
+}
+
+#ginv_root .ginv-section {
+  text-color: #FF4ADE80;
+}
+
+// Section header: label + trailing hairline rule (mock .section-h). The
+// rule flexes to fill the row; its height is Java-owned (D6). Paint only.
+#ginv_root .ginv-section-h {
+  flex-direction: row;
+  align-items: center;
+}
+
+#ginv_root .ginv-section-rule {
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-width: 0;
+  background: rect(#16FFFFFF);
+}
+
+// --- root: full-viewport centering column -----------------------------------
+#ginv_root {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+// The popup overlay stays fully transparent (no background rule). The windowed
+// state class is the only one buildLayout adds.
+#ginv_root.ginv-windowed {
+  align-items: stretch;
+  justify-content: flex-start;
+  background: rect(#FF0D1210);
+}
+
+// --- shell: centered responsive card ----------------------------------------
+// Geometry (max-width, max-height 94%, height) is Java-owned via u() so the
+// 75–200% preset still scales the card.
+#ginv_root .ginv-shell {
+  min-height: 0;
+  align-self: center;
+  flex-direction: column;
+  background: rect(#FF131A17, 0, 1, #16FFFFFF);
+}
+
+#ginv_root.ginv-windowed .ginv-shell {
+  flex-grow: 1;
+  flex-shrink: 1;
+}
+
+// --- card / regions ---------------------------------------------------------
+#ginv_root #ginv_panel {
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+  flex-direction: column;
+  position: relative;
+}
+
+// Shared row rule for the top and status bars.
+#ginv_root .ginv-topbar,
+#ginv_root .ginv-statusbar {
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-topbar {
+  position: relative;
+  flex-shrink: 0;
+  background: rect(#FF1D2723, 0, 1, #16FFFFFF);
+}
+
+// Centered top-bar layer: a click-through overlay spanning the bar that hosts
+// the SkyBlock chip, so the chip sits at the bar's centre no matter how wide
+// the left (icon + title) and right (View + chrome) clusters are. The layer
+// itself ignores hit-testing (Java sets allowHitTest(false)); only the chip it
+// hosts is interactive.
+#ginv_root .ginv-topbar-center {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+
+#ginv_root.ginv-windowed .ginv-topbar {
+  flex-shrink: 0;
+  background: rect(#FF0D1210, 0, 1, #2EFFFFFF);
+}
+
+#ginv_root .ginv-banner {
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+  background: rect(#3D4ADE80, 0);
+}
+
+#ginv_root #ginv_banner.ginv-banner-ok {
+  text-color: #FF3FB950;
+}
+
+#ginv_root #ginv_banner.ginv-banner-err {
+  text-color: #FFE5484D;
+}
+
+// Body wrapper: owns the vertical grow, lets tall content scroll.
+#ginv_root .ginv-body {
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+#ginv_root .ginv-body tab-view {
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+}
+
+#ginv_root .ginv-statusbar {
+  flex-shrink: 0;
+  margin-top: -1;
+  background: rect(#FF090D0C, 0, 1, #16FFFFFF);
+  clip: scissor;
+}
+
+// --- top-bar pieces ---------------------------------------------------------
+#ginv_root .ginv-app-icon {
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-title {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+// Transparent at rest: the trigger reads as part of the top bar, whatever that
+// surface is (#FF1D2723 normally, #FF0D1210 in the windowed chrome). Hover/pressed keep
+// it discoverable as a control.
+#ginv_root #ginv_view_menu {
+  base-background: rect(#00000000, 0);
+  hover-background: rect(#FF26332E, 0);
+  pressed-background: rect(#FF37B869, 0);
+}
+
+#ginv_root #ginv_view_menu .__button_text__ {
+  text-color: #FFE4ECE8;
+}
+
+// --- status text ------------------------------------------------------------
+#ginv_root #ginv_statusbar {
+  clip: scissor;
+}
+
+#ginv_root #ginv_status {
+  text-color: #FF94A49C;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+#ginv_root #ginv_feedback {
+  min-width: 0;
+}
+
+// Feedback semantics: info/dim, ok/green, warn/amber, err/red.
+#ginv_root #ginv_feedback.ginv-feedback-info {
+  text-color: #FF94A49C;
+}
+
+#ginv_root #ginv_feedback.ginv-feedback-ok {
+  text-color: #FF3FB950;
+}
+
+#ginv_root #ginv_feedback.ginv-feedback-warn {
+  text-color: #FFD29922;
+}
+
+#ginv_root #ginv_feedback.ginv-feedback-err {
+  text-color: #FFE5484D;
+}
+
+// --- panes: surface + overflow guard ----------------------------------------
+#ginv_root .ginv_pane {
+  background: rect(#FF131A17, 0);
+  clip: scissor;
+}
+
+// --- rows + control clusters ------------------------------------------------
+#ginv_root .ginv-row {
+  flex-direction: row;
+  align-items: center;
+  min-width: 0;
+}
+
+#ginv_root .ginv-row > label {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+#ginv_root .ginv-ctl {
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-tab-column {
+  flex-direction: column;
+}
+
+// Segmented rows (Menu scale presets, Popup|Screen). LDLib2 Toggle is
+// [aspect-1 button][flex-1 label]; the label's flex-basis:0 collapses the
+// Toggle to the square, so each Toggle takes a share of the row and its
+// button is stretched over the whole cell as a transparent click overlay.
+#ginv_root .ginv-scale-group,
+#ginv_root .ginv-mode-group {
+  flex-direction: row;
+  flex-wrap: wrap;
+  background: rect(#FF090D0C, 0, 1, #16FFFFFF);
+}
+
+#ginv_root .ginv-scale-group toggle,
+#ginv_root .ginv-mode-group toggle {
+  position: relative;
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-width: 0;
+  align-items: stretch;
+  background: rect(#FF1D2723, 0, 1, #16FFFFFF);
+}
+
+#ginv_root .ginv-scale-group toggle.__on__,
+#ginv_root .ginv-mode-group toggle.__on__ {
+  background: rect(#FF4ADE80, 0);
+}
+
+// Fill the cell with the (transparent) click target and keep the mark icon
+// out of the way — the segment reads as text on the Toggle's own surface.
+#ginv_root .ginv-scale-group .__toggle_button__,
+#ginv_root .ginv-mode-group .__toggle_button__ {
+  position: absolute;
+  z-index: 2;
+  base-background: empty;
+  hover-background: rect(#16FFFFFF);
+  pressed-background: rect(#2EFFFFFF);
+}
+
+#ginv_root .ginv-scale-group .__toggle_mark-icon__,
+#ginv_root .ginv-mode-group .__toggle_mark-icon__ {
+  display: none;
+}
+
+#ginv_root .ginv-scale-group .__toggle_label__,
+#ginv_root .ginv-mode-group .__toggle_label__ {
+  position: relative;
+  z-index: 1;
+  margin-left: 0;
+  text-color: #FFE4ECE8;
+}
+
+// Theme dropdown (Settings) — a native LDLib2 Selector. Java clears the
+// component's inline rounded surface so these squared faces apply (INLINE
+// outranks STYLESHEET, but a null value removes the slot). Geometry is
+// Java-owned (D6); only paint lives here.
+#ginv_root selector.ginv-theme-select {
+  background: rect(#FF1D2723, 0, 1, #16FFFFFF);
+}
+
+#ginv_root selector.ginv-theme-select:hovered {
+  background: rect(#FF26332E, 0, 1, #2EFFFFFF);
+}
+
+// The dropdown dialog reparents to the root on open, so it carries its own
+// class rather than riding on the selector's subtree.
+#ginv_root .ginv-theme-dialog {
+  background: rect(#FF131A17, 0, 1, #2EFFFFFF);
+}
+
+#ginv_root .ginv-theme-option {
+  text-color: #FFE4ECE8;
+}
+
+// --- hero -------------------------------------------------------------------
+// Hero size (width/height) is Java-owned via u().
+
+// Hero: red STOP while running, green RESUME while frozen (id+class wins over
+// the generic button rule). Hover/pressed are pre-shaded variants.
+#ginv_root #ginv_hero.ginv-hero-stop {
+  base-background: rect(#FFE5484D, 0);
+  hover-background: rect(#FFEC6165, 0);
+  pressed-background: rect(#FFCC3D42, 0);
+}
+
+#ginv_root #ginv_hero.ginv-hero-resume {
+  base-background: rect(#FF3FB950, 0);
+  hover-background: rect(#FF4FCB61, 0);
+  pressed-background: rect(#FF2E9E3D, 0);
+}
+
+#ginv_root button .__button_text__ {
+  text-color: #FFFFFFFF;
+}
+
+// Ink on the filled hero stays light in every palette — the mock draws the
+// hero label white — while neutral button ink stays theme-owned (dark on the
+// light palette).
+#ginv_root #ginv_hero .__button_text__ {
+  text-color: #FFFFFFFF;
+}
+
+// --- SkyBlock status chip + state dots --------------------------------------
+// Borderless and fill-less: the chip sits directly on the top bar's surface, and
+// the verdict is a color change only — the label text and its LED echo ON/OFF.
+#ginv_root .ginv-skyblock {
+  position: relative;
+  flex-direction: row;
+  align-items: center;
+  background: rect(#00000000, 0);
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-sky-on label {
+  text-color: #FF3FB950;
+}
+
+#ginv_root .ginv-sky-off label {
+  text-color: #FF94A49C;
+}
+
+// Dot is out of flow: the chip's left padding reserves the gutter and the
+// renderer paints the sheet-resolved background there.
+#ginv_root .ginv-dot {
+  position: absolute;
+  left: 0;
+}
+
+// The banner dot is a real flex child: keep it in flow at its authored size
+// (Java sets the 6×6 u() geometry inline).
+#ginv_root .ginv-banner .ginv-dot {
+  position: relative;
+}
+
+// Literal square pass: the mock draws these as round LEDs, but "square ALL
+// rounded corners" wins — a 99 radius is the only rounding left in the sheet.
+#ginv_root .ginv-dot.ginv-dot-on {
+  background: rect(#FF3FB950, 0);
+}
+
+#ginv_root .ginv-dot.ginv-dot-off {
+  background: rect(#FF6A7A72, 0);
+}
+
+// --- View popover -----------------------------------------------------------
+// Popover anchor/size (right/top/width/max-height/padding/gap) is Java-owned.
+#ginv_root #ginv_view_popover,
+#ginv_root .ginv-popover {
+  position: absolute;
+  flex-direction: column;
+  z-index: 1;
+  clip: scissor;
+  background: rect(#FF1D2723, 0, 1, #2EFFFFFF);
+}
+
+#ginv_root .ginv-popover-scroll {
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+}
+
+// --- buttons ----------------------------------------------------------------
+// Neutral raised controls; the accent is reserved for pressed state.
+// align-items: center owns the *vertical* centering of the button's text: the
+// Button element only sets justify-content (main axis = row), so without this
+// the text box lands at Taffy's default start and each label creeps toward the
+// top as the u()-scaled font outgrows the fixed internal padding (the "hero
+// STOP" text sat in the top third at 150%). Unit-free alignment, per D6.
+#ginv_root button {
+  align-items: center;
+  base-background: rect(#FF1D2723, 0, 1, #16FFFFFF);
+  hover-background: rect(#FF26332E, 0, 1, #2EFFFFFF);
+  pressed-background: rect(#FF37B869, 0);
+}
+
+#ginv_root button.__disabled__ {
+  base-background: rect(#FF191D26, 0, 1, #0DFFFFFF);
+  hover-background: rect(#FF191D26, 0, 1, #0DFFFFFF);
+  pressed-background: rect(#FF191D26, 0, 1, #0DFFFFFF);
+}
+
+#ginv_root button.__disabled__ .__button_text__ {
+  text-color: #FF6A7A72;
+}
+
+// Active whitelist / blacklist row buttons: the selected state is a 1px
+// semantic border, not a fill (idle stays borderless chrome).
+#ginv_root .ginv-list-white {
+  base-background: rect(#00000000, 0, 1, #FF3FB950);
+  hover-background: rect(#00000000, 0, 1, #FF4FCB61);
+  pressed-background: rect(#00000000, 0, 1, #FF2E9E3D);
+}
+
+#ginv_root .ginv-list-black {
+  base-background: rect(#00000000, 0, 1, #FFE5484D);
+  hover-background: rect(#00000000, 0, 1, #FFEC6165);
+  pressed-background: rect(#00000000, 0, 1, #FFCC3D42);
+}
+
+// Chrome buttons: transparent at rest, faint white on hover; red close.
+#ginv_root .ginv-chrome {
+  base-background: empty;
+  hover-background: rect(#16FFFFFF);
+  pressed-background: rect(#2EFFFFFF);
+  flex-shrink: 0;
+}
+
+#ginv_root .ginv-chrome.ginv-chrome-close {
+  hover-background: rect(#FFE5484D);
+  pressed-background: rect(#FFCC3D42);
+}
+
+// Light glyph for the in-screen close button on the dark top bar.
+#ginv_root .ginv-close-onscreen .__button_pre-icon__ {
+  color: #FFE4ECE8;
+}
+
+// --- switch (whitelist-only) ------------------------------------------------
+#ginv_root switch {
+  base-background: rect(#FF090D0C, 0, 1, #16FFFFFF);
+  pressed-background: rect(#FF4ADE80, 0);
+  unmark-background: rect(#FF090D0C, 0, 1, #16FFFFFF);
+  mark-background: rect(#FF4ADE80, 0);
+}
+
+// --- toggles (scale presets, mode group): checkbox squares ------------------
+#ginv_root .__toggle_button__ {
+  base-background: rect(#FF1D2723, 0, 1, #16FFFFFF);
+  hover-background: rect(#FF26332E, 0, 1, #2EFFFFFF);
+  pressed-background: rect(#FF1A1F29, 0, 1, #2EFFFFFF);
+}
+
+#ginv_root toggle {
+  mark-background: rect(#3D4ADE80, 0, 1, #FF4ADE80);
+  unmark-background: rect(#FF090D0C, 0, 1, #16FFFFFF);
+}
+
+// --- pages: one encapsulated tabbed card ------------------------------------
+// The document frame is drawn by the fused bands: the tab header, the tab
+// content and the status footer each carry a 1px #16FFFFFF border and overlap by
+// 1px, so the whole page region reads as one contained card. The host itself
+// stays transparent — its old frame was a redundant nested box on top of the
+// real bands. Geometry stays Java-owned (D6); this is paint only.
+#ginv_root .ginv-pages {
+  min-height: 0;
+}
+
+#ginv_root .ginv-page-body {
+  min-height: 0;
+}
+
+// --- tabs -------------------------------------------------------------------
+// The header shares the body surface and keeps the 1px #16FFFFFF border; the base
+// sheet's existing margin-bottom: -1 makes the shared edge collapse into one
+// seam, so the selector reads as the top band of the page card. Do not override
+// the base's margin-bottom/padding-all here.
+#ginv_root .__tab-view_tab_header_container__ {
+  background: rect(#FF131A17, 0, 1, #16FFFFFF);
+}
+
+#ginv_root .__tab-view_tab_content_container__ {
+  background: rect(#FF131A17, 0, 1, #16FFFFFF);
+}
+
+#ginv_root .ginv_tab {
+  base-background: empty;
+  hover-background: rect(#16FFFFFF, 0);
+  pressed-background: rect(#2EFFFFFF, 0);
+}
+
+#ginv_root .ginv_tab.__selected__ {
+  base-background: rect(#FF4ADE80) scale(1, 0.12) translate(0, 6.4);
+  hover-background: group(rect(#16FFFFFF, 0), rect(#FF4ADE80) scale(1, 0.12) translate(0, 6.4));
+  pressed-background: group(rect(#2EFFFFFF, 0), rect(#FF37B869) scale(1, 0.12) translate(0, 6.4));
+}
+
+#ginv_root .ginv_tab.__selected__ .__tab_text__ {
+  text-color: #FF4ADE80;
+}
+
+// --- base :not() reclaim ----------------------------------------------------
+// The base sheets own two :not() states, weighted 1000 each, which out-rank
+// our #id rules (weight 100). Only the first is one our UI sits on; the second
+// (.__configurator-group__ > .__configurator_line__) has no matching element
+// here. Reclaim the tab state so a light base cannot leak its own ink:
+//   base  tab:host:not(tab:selected) label                       = 1002
+//   ours  #ginv_root .ginv_tab:not(.__selected__) .__tab_text__  = 1120  (wins)
+#ginv_root .ginv_tab:not(.__selected__) .__tab_text__ {
+  text-color: #FF94A49C;
+}
+
+// --- player lists: horizontal row rules + vertical side rules only ----------
+// Rows are split by a full-width hairline; the list itself keeps squared
+// left/right rules (no top/bottom border). The 1xN rails are absolutely
+// positioned children of the list frame, added in Java.
+#ginv_root .ginv-row-sep {
+  background: rect(#16FFFFFF);
+}
+
+#ginv_root .ginv-list .__scroller_view_view-port__ {
+  background: rect(#FF090D0C, 0);
+}
+
+#ginv_root .ginv-list-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  background: rect(#16FFFFFF);
+}
+
+// --- table (excel-style grid rows) ------------------------------------------
+// Column tracks and all scale-bearing geometry are Java-owned (D6); the sheet
+// only paints the header band and keeps the grid children shrinkable.
+#ginv_root .ginv-table {
+  min-height: 0;
+}
+
+// Boxed column-header band: raised surface ringed by a hairline so the header
+// reads as its own strip instead of blending into the first row.
+#ginv_root .ginv-table-head {
+  background: rect(#FF1D2723, 0, 1, #16FFFFFF);
+}
+
+#ginv_root .ginv-table-th {
+  text-color: #FF6A7A72;
+  min-width: 0;
+}
+
+#ginv_root .ginv-table-row,
+#ginv_root .ginv-cell {
+  min-width: 0;
+}
+
+// Zebra banding: a barely-there wash on alternate data rows (the 1px row rules
+// stay) so wide tables read row-by-row instead of as one dense block.
+#ginv_root .ginv-row-alt {
+  background: rect(#0AFFFFFF, 0);
+}
+
+// --- scrollers (targets / lists / monitor / popover) ------------------------
+#ginv_root .__scroller_view_view-port__ {
+  background: rect(#FF090D0C, 0, 1, #16FFFFFF);
+}
+
+#ginv_root .__scroller_view_horizontal-scroller__,
+#ginv_root .__scroller_view_vertical-scroller__ {
+  background: rect(#FF090D0C, 0, 1, #16FFFFFF);
+}
+
+// The base sheet rounds the track itself (sdf(..., 3)) on a plain class, so the
+// bars alone are not enough: without this the squared wrapper still shows a
+// rounded sunken track nested inside it. Transparent leaves the squared
+// wrapper fill/border underneath as the only track.
+#ginv_root .__scroller_scroll_container__ {
+  background: rect(#00000000);
+}
+
+#ginv_root scroller-vertical .__scroller_scroll_bar__,
+#ginv_root scroller-horizontal .__scroller_scroll_bar__ {
+  base-background: rect(#3AFFFFFF, 0);
+  hover-background: rect(#66FFFFFF, 0);
+  pressed-background: rect(#FF4ADE80, 0);
+}

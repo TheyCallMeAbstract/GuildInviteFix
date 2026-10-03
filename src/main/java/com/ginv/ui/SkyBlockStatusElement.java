@@ -12,9 +12,10 @@ import dev.vfyjxf.taffy.style.TaffyPosition;
  *
  * <p>The whole look is stylesheet-driven (office.lss): the chip surface comes
  * from {@code .ginv-skyblock} and the state carries as the {@code .ginv-sky-on}
- * / {@code .ginv-sky-off} class pair, which also recolors the internal label.
- * The label child is the fallback view — if no renderer is registered, the
- * default renderer still draws the chip background plus that label.
+ * / {@code .ginv-sky-off} class pair — a <b>color change only</b>. The label is
+ * static ("SkyBlock"); there is no ON/OFF text and no border. The label child
+ * is the fallback view — if no renderer is registered, the default renderer
+ * still draws the chip background plus that label.
  *
  * <p>The state dot is an out-of-flow {@code .ginv-dot} child that exists only
  * as a style carrier: office.lss makes it {@code position:absolute} at 0×0 so
@@ -52,7 +53,7 @@ public class SkyBlockStatusElement extends UIElement {
             layout.height(0);
         });
         stateLabel = new Label();
-        stateLabel.setText("SkyBlock OFF", false);
+        stateLabel.setText("SkyBlock", false);
         // Measure the label: a Label's default width is 0 (adaptive-width off),
         // so the pill collapsed to its left padding and the text painted out
         // under the View button. Same setup Button gives its own text.
@@ -76,8 +77,9 @@ public class SkyBlockStatusElement extends UIElement {
     }
 
     /**
-     * Flips the state class pair and the label text. The screen may also flip
-     * the classes itself on tick; both paths stay in sync through this call.
+     * Flips the state class pair — the color change only. The label stays
+     * static ("SkyBlock"); the screen may also flip the classes itself on tick
+     * and both paths stay in sync through this call.
      */
     public void setSkyOn(boolean skyOn) {
         if (skyOn == isSkyOn()) {
@@ -92,7 +94,6 @@ public class SkyBlockStatusElement extends UIElement {
         }
         dot.removeClasses(CLASS_DOT_ON, CLASS_DOT_OFF);
         dot.addClass(skyOn ? CLASS_DOT_ON : CLASS_DOT_OFF);
-        stateLabel.setText(skyOn ? "SkyBlock ON" : "SkyBlock OFF", false);
     }
 
     /** Draws the sheet-painted state dot in the chip's left gutter. */

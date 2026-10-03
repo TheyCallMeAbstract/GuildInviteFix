@@ -45,11 +45,12 @@ public class LevelQueueMockScenario implements UIScenario {
             GuildTestGateway.reset();
         })
                 .ticks(1)
-                .openScreen("gmenu popup", ctx -> new GinvMenuScreen(true))
+                .openScreen("gmenu", ctx -> new GinvMenuScreen())
                 .awaitScreen(GinvMenuScreen.class)
                 .awaitModularUI()
-                // Precondition: not SkyBlock → caption says so, button disabled.
-                .checkText("#ginv_range", "SkyBlock only.")
+                // Precondition: not SkyBlock → the range caption is hidden (the
+                // top-bar chip carries the verdict) and the button is disabled.
+                .checkHidden("#ginv_range")
                 .step("install the fixture roster", ctx -> GuildTestGateway.install(List.of(
                         new GuildDirectory.Entry("Alice", new GuildLevels.LevelInfo(42, 0xFFFFFF55)),
                         new GuildDirectory.Entry("Bob", new GuildLevels.LevelInfo(15, 0xFFFFFF55)),
