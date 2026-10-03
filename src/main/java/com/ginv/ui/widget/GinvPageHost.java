@@ -46,6 +46,17 @@ public class GinvPageHost extends UIElement {
             layout.flexShrink(1);
             layout.minHeight(0);
         });
+        // LDLib2's TabView content slot gets flex-grow:1 but no flex-shrink:
+        // its LayoutProperties.FLEX_SHRINK defaults to 0 (not CSS's 1), so the
+        // slot can never shrink below its content height. A long list then
+        // grows the slot — and the page with it, since the page is height:100%
+        // of the slot — instead of scrolling inside the table's own
+        // ScrollerView. Pin it to the available height. Structural geometry
+        // stays Java-owned (D6).
+        this.tabView.tabContentContainer(container -> container.layout(layout -> {
+            layout.flexShrink(1);
+            layout.minHeight(0);
+        }));
         addChild(this.tabView);
 
         this.pagePadding = pagePadding;
