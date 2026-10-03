@@ -57,6 +57,18 @@ public class ScalePresetScenario implements UIScenario {
                 .click("#ginv_view_menu")
                 .ticks(1)
                 .checkVisible("#ginv_view_popover")
+                // View-popover regression guard: the preset text lives in a
+                // Toggle label with a definite (adaptiveHeight) cross-size, so
+                // a STRETCH toggle parks it at the top and it creeps upward as
+                // u() scales the font. The label box must sit on the segment's
+                // centerline (same drift the hero STOP text and the View button
+                // had; Toggles were missed by the button rule).
+                .check("scale preset text is vertically centered in its segment", ctx -> {
+                    var segment = ctx.el("#ginv_scale_100").bounds();
+                    var labels = ctx.query("#ginv_scale_100 .__toggle_label__").visible().list();
+                    return !segment.isEmpty() && !labels.isEmpty()
+                            && Math.abs(labels.get(0).bounds().centerY() - segment.centerY()) <= 1.0f;
+                })
                 .screenshot("view_menu_open")
                 .click("#ginv_scale_150")
                 .waitUntil("uiScale is 1.5 and autoscale switched off",

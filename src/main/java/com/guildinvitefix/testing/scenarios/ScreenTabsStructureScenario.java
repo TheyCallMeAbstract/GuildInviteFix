@@ -129,9 +129,7 @@ public class ScreenTabsStructureScenario implements UIScenario {
 
         // T14 section organization: the form is grouped under three
         // ginv-section headers (INVITES / FILTERING / APPEARANCE) in reading
-        // order, the row labels carry the normalized copy, and the whitelist
-        // note sits inside the FILTERING band rather than floating between it
-        // and APPEARANCE.
+        // order, and the row labels carry the normalized copy.
         s.check("settings has the three section headers in order", ctx ->
                 sectionHeaders(ctx).stream().map(ElementRef::text).toList()
                         .equals(List.of("INVITES", "FILTERING", "APPEARANCE")))
@@ -140,17 +138,8 @@ public class ScreenTabsStructureScenario implements UIScenario {
                             .visible().list().stream()
                             .map(ElementRef::text)
                             .collect(Collectors.toSet());
-                    return labels.equals(Set.of("Invite delay (ms)", "Whitelist only", "Theme"));
-                })
-                .check("the whitelist note sits in the filtering section", ctx -> {
-                    List<ElementRef> headers = sectionHeaders(ctx);
-                    if (headers.size() != 3) {
-                        return false;
-                    }
-                    ElementRef note = ctx.query("#ginv_pane_settings .ginv-caption")
-                            .withTextContaining("whitelisted players are invited").one();
-                    return headers.get(1).bounds().y() < note.bounds().y()
-                            && note.bounds().y() < headers.get(2).bounds().y();
+                    return labels.equals(Set.of("Invite delay (ms):", "Whitelist only:",
+                            "Blacklist duration:", "Theme:"));
                 });
 
         // T13 containment: with Settings open (last slug walked) the pane and

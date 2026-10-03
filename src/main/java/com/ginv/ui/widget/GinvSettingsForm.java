@@ -92,15 +92,10 @@ public class GinvSettingsForm extends UIElement {
         return this;
     }
 
-    /** Appends a full-width child (e.g. a section header or a note). */
+    /** Appends a full-width child (e.g. a section header). */
     public GinvSettingsForm addFullWidth(UIElement child) {
         child.layout(layout -> layout.widthPercent(100));
         addChild(child);
         return this;
-    }
-
-    /** Appends a full-width note (e.g. the hint caption). */
-    public GinvSettingsForm addNote(Label note) {
-        return addFullWidth(note);
     }
 }

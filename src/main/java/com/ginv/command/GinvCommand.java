@@ -14,6 +14,7 @@ import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.chat.Component;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -32,7 +33,9 @@ public class GinvCommand {
     });
     private static final Random random = new Random();
 
-    private static volatile boolean frozen = false;
+    // Starts frozen: nothing is sent until the user resumes (hero STOP/RESUME
+    // button or /gfreeze). Not persisted — always frozen on a fresh process.
+    private static volatile boolean frozen = true;
 
     /**
      * Suggests player names from the tab list, excluding names already typed.
@@ -51,6 +54,7 @@ public class GinvCommand {
         List<String> onlineNames = connection.getOnlinePlayers().stream()
                 .map(info -> info.getProfile().name())
                 .filter(name -> !name.startsWith("!"))
+                .filter(name -> !isSelf(name, selfName()))
                 .toList();
         String[] tokens = input.split(" ", -1);
         boolean startingNewToken = input.endsWith(" ");
@@ -98,7 +102,7 @@ public class GinvCommand {
     private static int executeWithArgs(CommandContext<FabricClientCommandSource> context) {
         String raw = StringArgumentType.getString(context, "names");
 
-        Set<String> parsed = parseTargets(raw);
+        List<String> parsed = excludeSelf(parseTargets(raw));
 
         if (parsed.isEmpty()) {
             context.getSource().sendFeedback(Component.literal(
@@ -146,13 +150,50 @@ public class GinvCommand {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
+    // --- Self exclusion ---
+
+    /**
+     * Pure, headless-testable predicate: true only when both names are
+     * non-null and equal ignoring case. Independent of Minecraft.
+     */
+    static boolean isSelf(String name, @Nullable String selfName) {
+        return name != null && selfName != null && name.equalsIgnoreCase(selfName);
+    }
+
+    /**
+     * The local player's game-profile name, or {@code null} when there is no
+     * client/player yet. Never throws.
+     */
+    @Nullable
+    public static String selfName() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.player == null) return null;
+        return minecraft.player.getGameProfile().name();
+    }
+
+    /**
+     * Order-preserving copy of {@code targets} with the local player removed.
+     * Callers use this so the player's own name can never be queued or sent.
+     */
+    public static List<String> excludeSelf(Collection<String> targets) {
+        List<String> result = new ArrayList<>();
+        String self = selfName();
+        for (String target : targets) {
+            if (!isSelf(target, self)) {
+                result.add(target);
+            }
+        }
+        return result;
+    }
+
     /**
      * Adds targets to the shared queue and starts processing.
      * Called by all commands that need to batch-invite.
      */
     public static void queueAndSchedule(Collection<String> targets) {
-        ginvTargets.addAll(targets);
-        pendingInvites.addAll(targets);
+        Collection<String> allowed = excludeSelf(targets);
+        ginvTargets.addAll(allowed);
+        pendingInvites.addAll(allowed);
         processNext();
     }
 
@@ -178,8 +219,12 @@ public class GinvCommand {
         List<String> targets = new ArrayList<>();
         int skippedNoLevel = 0;
         int skippedLowLevel = 0;
+        String self = selfName();
 
         for (GuildDirectory.Entry entry : GuildDirectory.online()) {
+            if (isSelf(entry.name(), self)) {
+                continue; // never queue the local player; not counted as skipped
+            }
             GuildLevels.LevelInfo level = entry.level();
             if (level == null) {
                 skippedNoLevel++;
@@ -213,7 +258,7 @@ public class GinvCommand {
         scheduler.schedule(() -> {
             if (frozen) return; // will be resumed by toggleFreeze()
             String name = pendingInvites.poll();
-            if (name != null && GinvDataStore.isAllowed(name)) {
+            if (name != null && !isSelf(name, selfName()) && GinvDataStore.isAllowed(name)) {
                 if (InviteRoute.send(name)) {
                     GinvDataStore.recordInvite(name);
                 }

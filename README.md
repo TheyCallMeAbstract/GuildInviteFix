@@ -18,6 +18,7 @@ A client-side Fabric mod that batch-sends guild invites to multiple players at o
 ```
 
 Invite specific players by name. Supports tab completion from the tab list.
+Your own name is always excluded from invites and tab-completion suggestions.
 
 ```
 /glvl <level>
@@ -31,7 +32,9 @@ Requires being in a SkyBlock instance. Players without a level (NPCs) are skippe
 ```
 
 Toggle freeze on the invite queue. When frozen, no invites are sent but new targets are still queued.
-Run again to resume sending.
+Run again to resume sending. The mod **starts frozen**: no invites are sent
+until you resume, either by pressing **STOP/RESUME INVITES** in the menu or by
+running `/gfreeze`.
 
 ```
 /gmenu
@@ -46,9 +49,9 @@ Open the in-game menu (LDLib2 UI) as a popup over the HUD, with three tabs:
   current-target list with per-row remove, per-player invite count/last-invite
   age and **Clear**
 - **Settings** — sectioned into **Invites** (invite delay range in ms with an
-  **Apply** button), **Filtering** (whitelist only, with a note that only
-  whitelisted players are invited and blacklisted players are always blocked)
-  and **Appearance** (the menu theme picker)
+  **Apply** button), **Filtering** (whitelist only plus a configurable
+  **Blacklist duration** — default 7 days; whitelist entries are always
+  permanent) and **Appearance** (the menu theme picker)
 - **Lists** — whitelist/blacklist management with a player-name search box
   plus a **LVL ▾** popover holding an inclusive min/max range (each field
   optional; blank = unset) and a **Clear** action; the filter applies live and

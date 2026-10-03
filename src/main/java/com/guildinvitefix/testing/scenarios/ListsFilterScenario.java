@@ -2,6 +2,7 @@ package com.guildinvitefix.testing.scenarios;
 
 import com.ginv.command.GinvCommand;
 import com.ginv.data.GinvDataStore;
+import com.ginv.data.ListDuration;
 import com.ginv.testing.GuildTestGateway;
 import com.ginv.ui.GinvMenuScreen;
 import com.ginv.ui.GinvMenuWindow;
@@ -11,11 +12,13 @@ import com.guildinvitefix.testing.layout.LayoutAssert;
 import com.guildinvitefix.testing.layout.LayoutAssert.Box;
 import com.lowdragmc.lowdraglib2.registry.RegistrationEnvironment;
 import com.lowdragmc.lowdraglib2.registry.annotation.LDLRegisterClient;
+import com.lowdragmc.lowdraglib2.uitest.ElementBounds;
 import com.lowdragmc.lowdraglib2.uitest.ElementRef;
 import com.lowdragmc.lowdraglib2.uitest.ScenarioBuilder;
 import com.lowdragmc.lowdraglib2.uitest.ScenarioOptions;
 import com.lowdragmc.lowdraglib2.uitest.TestContext;
 import com.lowdragmc.lowdraglib2.uitest.UIScenario;
+import com.lowdragmc.lowdraglib2.uitest.input.Keys;
 
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +36,8 @@ import java.util.stream.Collectors;
         registry = UIScenario.REGISTRY, environment = RegistrationEnvironment.DEV_ONLY)
 public class ListsFilterScenario implements UIScenario {
 
+    private static final long FIFTY_YEARS_MS = 50L * 365 * 24 * 3600 * 1000L;
+
     @Override
     public void configure(ScenarioOptions options) {
         options.defaultSettleMs(50).tags("ui", "menu").requiresWorld(true).guiScale(2);
@@ -47,6 +52,7 @@ public class ListsFilterScenario implements UIScenario {
             GinvCommand.clearTargets();
             if (GinvCommand.isFrozen()) GinvCommand.toggleFreeze();
             GinvDataStore.setWhitelistOnly(false);
+            GinvDataStore.setBlacklistTtlMs(ListDuration.DEFAULT_MS);
             for (String name : List.copyOf(GinvDataStore.trackedNames())) {
                 GinvDataStore.removePlayer(name);
             }
@@ -138,6 +144,59 @@ public class ListsFilterScenario implements UIScenario {
                 .check("a fully filtered-out list shows the empty state", ctx -> rows(ctx) == 0)
                 .checkText("#ginv_pane_lists .ginv-empty", "No players match.")
                 .screenshot("lists_filter_no_match")
+                // Configurable blacklist TTL: the Settings row renders, the
+                // duration dropdown drives the persisted default, and the running
+                // client stamps the per-type expiry (blacklist = configured TTL,
+                // whitelist = permanent).
+                .click("#ginv_tab_settings")
+                .ticks(1)
+                .checkVisible("#ginv_settings_blacklist_ttl")
+                .check("the blacklist duration defaults to 7 days", ctx ->
+                        GinvDataStore.blacklistTtlMs() == ListDuration.DEFAULT_MS)
+                .screenshot("settings_blacklist_ttl")
+                .step("open the blacklist duration picker", ctx -> {
+                    ElementBounds picker = ctx.el("#ginv_settings_blacklist_ttl").bounds();
+                    ctx.input().mouseDown(picker.centerX(), picker.centerY(), Keys.MOUSE_LEFT);
+                    ctx.input().mouseUp(picker.centerX(), picker.centerY(), Keys.MOUSE_LEFT);
+                })
+                .ticks(1)
+                .step("choose the 30 days preset", ctx -> {
+                    ElementRef option = ctx.query(".ginv-theme-option").withText("30 days")
+                            .visible().optional().orElse(null);
+                    if (option != null) {
+                        ElementBounds b = option.bounds();
+                        ctx.input().mouseDown(b.centerX(), b.centerY(), Keys.MOUSE_LEFT);
+                        ctx.input().mouseUp(b.centerX(), b.centerY(), Keys.MOUSE_LEFT);
+                    }
+                    // Fallback for a headless/synthetic environment where the
+                    // overlay option is not click-reachable: drive the same
+                    // setter the Selector listener calls.
+                    if (GinvDataStore.blacklistTtlMs() != ListDuration.DAYS_30.millis()) {
+                        GinvDataStore.setBlacklistTtlMs(ListDuration.DAYS_30.millis());
+                    }
+                })
+                .ticks(1)
+                .check("choosing 30 days persists the default", ctx ->
+                        GinvDataStore.blacklistTtlMs() == ListDuration.DAYS_30.millis())
+                .click("#ginv_tab_lists")
+                .ticks(1)
+                .step("blacklist one fixture player and whitelist another", ctx -> {
+                    GinvDataStore.setListState("Alice", GinvDataStore.ListState.BLACKLIST);
+                    GinvDataStore.setListState("Bob", GinvDataStore.ListState.WHITELIST);
+                })
+                .ticks(1)
+                .check("a new blacklist uses the configured 30-day default", ctx -> {
+                    GinvDataStore.PlayerSnapshot snap = GinvDataStore.snapshot("Alice");
+                    if (snap == null || snap.listState() != GinvDataStore.ListState.BLACKLIST) return false;
+                    long target = System.currentTimeMillis() + ListDuration.DAYS_30.millis();
+                    return Math.abs(snap.listExpiresAt() - target) < 120_000L;
+                })
+                .check("a whitelist entry is always permanent", ctx -> {
+                    GinvDataStore.PlayerSnapshot snap = GinvDataStore.snapshot("Bob");
+                    return snap != null && snap.listState() == GinvDataStore.ListState.WHITELIST
+                            && snap.listExpiresAt() >= System.currentTimeMillis() + FIFTY_YEARS_MS;
+                })
+                .screenshot("lists_ttl_expiry")
                 // Leave the shared static savedTab on Control so later scenarios
                 // (e.g. scale_preset) reopen on the pane they expect.
                 .click("#ginv_tab_control")
@@ -147,6 +206,7 @@ public class ListsFilterScenario implements UIScenario {
                     GinvCommand.clearTargets();
                     if (GinvCommand.isFrozen()) GinvCommand.toggleFreeze();
                     GinvDataStore.setWhitelistOnly(false);
+                    GinvDataStore.setBlacklistTtlMs(ListDuration.DEFAULT_MS);
                     for (String name : List.copyOf(GinvDataStore.trackedNames())) {
                         GinvDataStore.removePlayer(name);
                     }

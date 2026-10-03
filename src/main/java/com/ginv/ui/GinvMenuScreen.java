@@ -4,6 +4,7 @@ import com.ginv.GuildInviteFix;
 import com.ginv.command.GinvCommand;
 import com.ginv.command.LevelQueueResult;
 import com.ginv.data.GinvDataStore;
+import com.ginv.data.ListDuration;
 import com.ginv.ui.theme.GinvTheme;
 import com.ginv.ui.widget.GinvPageHost;
 import com.ginv.ui.widget.GinvSettingsForm;
@@ -24,7 +25,6 @@ import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
 import com.lowdragmc.lowdraglib2.gui.ui.style.Stylesheet;
 import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
 import com.lowdragmc.lowdraglib2.gui.ui.data.Horizontal;
-import com.lowdragmc.lowdraglib2.gui.ui.data.TextWrap;
 import com.lowdragmc.lowdraglib2.gui.ui.data.Vertical;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
@@ -48,7 +48,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -208,6 +207,11 @@ public class GinvMenuScreen extends ModularUIScreen {
                         || inSubtree(root.viewPopover, event.target))) {
                 inside = true;
             }
+            if (!inside && root.blacklistPopover != null
+                    && (within(root.blacklistPopover, event.x, event.y)
+                        || inSubtree(root.blacklistPopover, event.target))) {
+                inside = true;
+            }
             if (!inside) {
                 onClose();
             }
@@ -315,6 +319,7 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         UIElement panel = new UIElement();
         panel.setId("ginv_panel");
+        root.panel = panel;
         // Geometry is Java-owned (D6); office-dusk.lss keeps flex/paint (#ginv_panel).
         panel.layout(layout -> {
             layout.widthPercent(100);
@@ -542,7 +547,15 @@ public class GinvMenuScreen extends ModularUIScreen {
             toggle.setText(scalePresetLabel(preset));
             sizeGroupToggle(toggle);
                 toggle.toggleLabel(label -> {
-                    label.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+                    label.textStyle(style -> style
+                            .fontSize(u(10))
+                            .adaptiveHeight(true)
+                            // Center the preset text in its segment at every
+                            // scale (the mock centers it; Toggle's default is
+                            // LEFT, and a fixed-height label would otherwise
+                            // ride the top under STRETCH).
+                            .textAlignHorizontal(Horizontal.CENTER)
+                            .textAlignVertical(Vertical.CENTER));
                     label.layout(layout -> {
                         layout.paddingLeft(u(2));
                         layout.paddingRight(u(2));
@@ -571,6 +584,44 @@ public class GinvMenuScreen extends ModularUIScreen {
         root.viewOpen = false;
         viewButton.setOnClick(event -> toggleViewPopover(root));
 
+        // Blacklist-duration popover (right-click a Lists row's blacklist
+        // icon): one hidden absolute overlay on #ginv_panel, shown at the
+        // cursor and clamped inside the panel. Built before the first
+        // fillListsTable so row triggers always find it.
+        UIElement blacklistPopover = new UIElement();
+        blacklistPopover.setId("ginv_blacklist_duration_popover");
+        blacklistPopover.addClass("ginv-popover");
+        blacklistPopover.layout(layout -> {
+            layout.positionType(TaffyPosition.ABSOLUTE);
+            layout.width(u(120));
+            layout.paddingAll(u(SPACE_4));
+            layout.gapAll(u(SPACE_2));
+        });
+        blacklistPopover.getStyle().zIndex(1);
+        blacklistPopover.setDisplay(false);
+        for (ListDuration duration : ListDuration.values()) {
+            Button option = new Button();
+            option.setId("ginv_blacklist_duration_" + durationIdSuffix(duration));
+            option.setText(duration.displayName());
+            option.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
+            option.layout(layout -> {
+                layout.widthPercent(100);
+                layout.height(u(16));
+                layout.minHeight(u(16));
+            });
+            option.setOnClick(event -> {
+                if (root.blacklistPopoverTarget != null) {
+                    GinvDataStore.setListState(root.blacklistPopoverTarget,
+                            GinvDataStore.ListState.BLACKLIST, duration);
+                }
+                hideBlacklistPopover(root);
+            });
+            blacklistPopover.addChild(option);
+        }
+        panel.addChild(blacklistPopover);
+        root.blacklistPopover = blacklistPopover;
+        root.blacklistPopoverOpen = false;
+
         // Dismissal: a bubbling press that missed both anchor and popover —
         // geometrically or as the event's target subtree — and a genuine root
         // size change (viewport resize). LAYOUT_CHANGED does not bubble, but
@@ -594,6 +645,11 @@ public class GinvMenuScreen extends ModularUIScreen {
                         || inSubtree(root.listsFilterPopover, event.target))) {
                 hideListsFilterPopover(root);
             }
+            if (root.blacklistPopoverOpen
+                    && !(within(root.blacklistPopover, event.x, event.y)
+                        || inSubtree(root.blacklistPopover, event.target))) {
+                hideBlacklistPopover(root);
+            }
         });
         root.addEventListener(UIEvents.LAYOUT_CHANGED, event -> {
             float width = root.getSizeWidth();
@@ -603,7 +659,10 @@ public class GinvMenuScreen extends ModularUIScreen {
             root.lastRootHeight = height;
             // Child-driven contentSize churn (popover open/close) leaves the
             // root's size untouched — only a real resize/rebuild closes.
-            if (resized && root.viewOpen) hideViewPopover(root);
+            if (resized) {
+                if (root.viewOpen) hideViewPopover(root);
+                if (root.blacklistPopoverOpen) hideBlacklistPopover(root);
+            }
         });
 
         // Pages: Control | Lists | Settings -------------------------------
@@ -750,7 +809,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         queueNames.layout(layout -> layout.height(u(16)));
         queueNames.textStyle(style -> style.fontSize(u(10)).adaptiveHeight(true));
         queueNames.setOnClick(event -> {
-            Set<String> parsed = GinvCommand.parseTargets(nameField.getValue());
+            List<String> parsed = GinvCommand.excludeSelf(GinvCommand.parseTargets(nameField.getValue()));
             if (parsed.isEmpty()) {
                 feedback(feedbackLabel, "No valid names.", FeedbackKind.ERR);
                 return;
@@ -954,7 +1013,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         filterMenu.setOnClick(event -> toggleListsFilterPopover(root));
 
         GinvTable listsTable = new GinvTable(listColumns(), u(18), u(3), u(14));
-        fillListsTable(listsTable, collectLevels(), listFilter(root));
+        fillListsTable(root, listsTable, collectLevels(), listFilter(root));
         root.listsTable = listsTable;
 
         UIElement content = tabColumn();
@@ -1034,7 +1093,7 @@ public class GinvMenuScreen extends ModularUIScreen {
             }
         });
 
-        Label delayLabel = bodyLabel("Invite delay (ms)");
+        Label delayLabel = bodyLabel("Invite delay (ms):");
         // Plain element, not .ginv-ctl: that class is flex-shrink: 0, which
         // would stop the cluster shrinking at the narrow popup width.
         UIElement delayCtl = new UIElement();
@@ -1055,9 +1114,35 @@ public class GinvMenuScreen extends ModularUIScreen {
         whitelistSwitch.getStyle().tooltips("Only invite whitelisted players");
         root.whitelistSwitch = whitelistSwitch;
 
-        Label whitelistLabel = bodyLabel("Whitelist only");
+        Label whitelistLabel = bodyLabel("Whitelist only:");
 
-        Label hintLabel = captionWrapped("Only whitelisted players are invited. Blacklisted players are always blocked.");
+        // Blacklist duration: the per-type default expiry the store stamps on a
+        // new blacklist entry. Same native Selector + sheet classes as the theme
+        // picker, so no new stylesheet surface. Whitelist entries stay permanent.
+        Label blacklistTtlLabel = bodyLabel("Blacklist duration:");
+        Selector<ListDuration> blacklistTtlSelector = new Selector<>();
+        blacklistTtlSelector.setId("ginv_settings_blacklist_ttl");
+        blacklistTtlSelector.addClass("ginv-theme-select");
+        blacklistTtlSelector.setCandidateUIProvider(GinvMenuScreen::blacklistTtlOptionLabel);
+        blacklistTtlSelector.setCandidates(List.of(ListDuration.values()));
+        blacklistTtlSelector.setSelected(ListDuration.nearest(GinvDataStore.blacklistTtlMs()), false);
+        blacklistTtlSelector.setOnValueChanged(value -> {
+            if (value != null) {
+                GinvDataStore.setBlacklistTtlMs(value.millis());
+            }
+        });
+        blacklistTtlSelector.getStyle().tooltips(
+                "New blacklist entries expire after this. Whitelist entries are always permanent.");
+        blacklistTtlSelector.layout(layout -> {
+            layout.flexGrow(1);
+            layout.flexShrink(1);
+            layout.flexBasis(0);
+            layout.minWidth(0);
+            layout.height(u(16));
+        });
+        blacklistTtlSelector.getStyle().backgroundTexture(null);
+        blacklistTtlSelector.dialog.addClass("ginv-theme-dialog");
+        blacklistTtlSelector.dialog.getStyle().backgroundTexture(null);
 
         // Theme selector: the only theme picker (View popover no longer has
         // one). A native LDLib2 Selector dropdown — a component, not a row of
@@ -1066,7 +1151,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         // rebuilds via the proven pendingScaleRebuild path (screen or OS window
         // in place). Geometry is Java-owned (D6); the sheet owns only paint.
         GinvTheme active = activeTheme();
-        Label themeLabel = bodyLabel("Theme");
+        Label themeLabel = bodyLabel("Theme:");
         List<GinvTheme> shippedThemes = new ArrayList<>();
         for (GinvTheme candidate : GinvTheme.values()) {
             if (candidate.hasDelta()) {
@@ -1109,7 +1194,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         form.addSetting(delayLabel, delayCtl, true);
         form.addFullWidth(sectionHeader("Filtering"));
         form.addSetting(whitelistLabel, whitelistSwitch, false);
-        form.addNote(hintLabel);
+        form.addSetting(blacklistTtlLabel, blacklistTtlSelector, true);
         form.addFullWidth(sectionHeader("Appearance"));
         form.addSetting(themeLabel, themeSelector, true);
 
@@ -1163,7 +1248,12 @@ public class GinvMenuScreen extends ModularUIScreen {
             layout.height(u(14));
             layout.minHeight(u(14));
             layout.paddingAll(0);
-            layout.alignItems(AlignItems.STRETCH);
+            // The label is adaptiveHeight(true) — a definite cross-size, which
+            // flexbox leaves at flex-start (top) under STRETCH. CENTER puts the
+            // text box in the middle of the segment at every u() scale (the
+            // same drift the hero STOP text had). The click target is the
+            // absolute toggle button, so it does not need STRETCH.
+            layout.alignItems(AlignItems.CENTER);
         });
         // Toggle's button ships with an inline aspectRatio(1); override it so
         // the transparent click target fills the whole segment cell.
@@ -1231,20 +1321,6 @@ public class GinvMenuScreen extends ModularUIScreen {
         return label;
     }
 
-    /**
-     * Same as {@link #caption(String)} but wraps across lines instead of
-     * clipping at the parent's right edge. Used only where a note spans the
-     * full width (the Settings filtering hint); the global caption stays
-     * single-line so short captions never reflow.
-     */
-    private static Label captionWrapped(String text) {
-        Label label = new Label();
-        label.setText(text);
-        label.addClass("ginv-caption");
-        label.textStyle(style -> style.fontSize(u(9)).adaptiveHeight(true).textWrap(TextWrap.WRAP));
-        return label;
-    }
-
     private static Label bodyLabel(String text) {
         Label label = new Label();
         label.setText(text);
@@ -1259,6 +1335,23 @@ public class GinvMenuScreen extends ModularUIScreen {
      * sheet owns the ink via the shared label rule.
      */
     private static Label themeOptionLabel(GinvTheme candidate) {
+        Label label = new Label();
+        label.setText(candidate == null ? "---" : candidate.displayName());
+        label.addClass("ginv-theme-option");
+        label.textStyle(style -> style
+                .fontSize(u(10))
+                .adaptiveHeight(true)
+                .textAlignHorizontal(Horizontal.LEFT)
+                .textAlignVertical(Vertical.CENTER));
+        return label;
+    }
+
+    /**
+     * Blacklist-duration Selector option: the dropdown row and the collapsed
+     * value preview both read {@link ListDuration#displayName()}. Reuses the
+     * theme-option label class so the sheet owns the ink.
+     */
+    private static Label blacklistTtlOptionLabel(ListDuration candidate) {
         Label label = new Label();
         label.setText(candidate == null ? "---" : candidate.displayName());
         label.addClass("ginv-theme-option");
@@ -1481,7 +1574,8 @@ public class GinvMenuScreen extends ModularUIScreen {
         return levels;
     }
 
-    private static void fillListsTable(GinvTable table, Map<String, GuildLevels.LevelInfo> levels,
+    private static void fillListsTable(GinvRoot root, GinvTable table,
+                                       Map<String, GuildLevels.LevelInfo> levels,
                                        ListsFilter filter) {
         table.clearRows();
         List<String> names = collectNames();
@@ -1505,6 +1599,17 @@ public class GinvMenuScreen extends ModularUIScreen {
             GinvDataStore.ListState state = snapshot == null
                     ? GinvDataStore.ListState.NONE
                     : snapshot.listState();
+            Button blacklistButton = iconListButton(state == GinvDataStore.ListState.BLACKLIST
+                            ? "ginv-list-black" : null,
+                    BLACKLIST_ICON,
+                    "Blacklist player (right-click for duration)",
+                    () -> toggleList(name, GinvDataStore.ListState.BLACKLIST));
+            blacklistButton.addClass("ginv-list-blacklist-trigger");
+            blacklistButton.addEventListener(UIEvents.MOUSE_DOWN, event -> {
+                if (event.button == 1) {
+                    openBlacklistPopover(root, name, event.x, event.y);
+                }
+            });
             table.addRow(null,
                     nameCell(name, levels.get(name)),
                     iconListButton(state == GinvDataStore.ListState.WHITELIST
@@ -1512,11 +1617,7 @@ public class GinvMenuScreen extends ModularUIScreen {
                             WHITELIST_ICON,
                             "Whitelist player",
                             () -> toggleList(name, GinvDataStore.ListState.WHITELIST)),
-                    iconListButton(state == GinvDataStore.ListState.BLACKLIST
-                                    ? "ginv-list-black" : null,
-                            BLACKLIST_ICON,
-                            "Blacklist player (always blocks invites)",
-                            () -> toggleList(name, GinvDataStore.ListState.BLACKLIST)),
+                    blacklistButton,
                     iconListButton(null, BOLT_ICON, "Remove record and unqueue", () -> {
                         GinvDataStore.removePlayer(name);
                         GinvCommand.removeFromQueue(name);
@@ -1658,6 +1759,50 @@ public class GinvMenuScreen extends ModularUIScreen {
         if (!root.viewOpen) return;
         root.viewOpen = false;
         root.viewPopover.setDisplay(false);
+    }
+
+    /** Stable id suffix for a {@link ListDuration} popover option. */
+    private static String durationIdSuffix(ListDuration duration) {
+        return switch (duration) {
+            case DAYS_3 -> "days_3";
+            case DAYS_7 -> "days_7";
+            case DAYS_14 -> "days_14";
+            case DAYS_30 -> "days_30";
+            case FOREVER -> "forever";
+        };
+    }
+
+    /**
+     * Opens the per-player blacklist-duration popover at the right-click
+     * cursor, clamped inside {@code #ginv_panel}. Absolute offsets resolve
+     * against the panel's padding box, so the root-space cursor is converted
+     * with {@code getContentX/Y}. A not-yet-measured popover (size 0 on the
+     * same tick) is clamped against its nominal 120u × five-row box.
+     */
+    private static void openBlacklistPopover(GinvRoot root, String name, float x, float y) {
+        if (root.blacklistPopover == null || root.panel == null) return;
+        root.blacklistPopoverTarget = name;
+        root.blacklistPopover.setDisplay(true);
+        root.blacklistPopoverOpen = true;
+        float localX = x - root.panel.getContentX();
+        float localY = y - root.panel.getContentY();
+        float popW = root.blacklistPopover.getSizeWidth();
+        float popH = root.blacklistPopover.getSizeHeight();
+        int rows = ListDuration.values().length;
+        if (popW <= 0) popW = u(120);
+        if (popH <= 0) popH = u(16) * rows + u(SPACE_2) * (rows - 1) + u(SPACE_4) * 2;
+        float maxX = Math.max(0, root.panel.getContentWidth() - popW);
+        float maxY = Math.max(0, root.panel.getContentHeight() - popH);
+        localX = Math.max(0, Math.min(localX, maxX));
+        localY = Math.max(0, Math.min(localY, maxY));
+        root.blacklistPopover.getLayout().left(localX).top(localY);
+        root.blacklistPopover.clearLayoutCache();
+    }
+
+    private static void hideBlacklistPopover(GinvRoot root) {
+        if (root.blacklistPopover == null || !root.blacklistPopoverOpen) return;
+        root.blacklistPopoverOpen = false;
+        root.blacklistPopover.setDisplay(false);
     }
 
     /** Reveals the Lists LVL filter disclosure, or conceals it again. */
@@ -1946,6 +2091,13 @@ public class GinvMenuScreen extends ModularUIScreen {
         /** Anchor the popover drops from (the top-bar View button). */
         UIElement viewAnchor;
         boolean viewOpen;
+        /** Per-player blacklist-duration popover: built hidden, opened at the cursor. */
+        UIElement blacklistPopover;
+        /** Player name the blacklist popover will apply its selection to. */
+        String blacklistPopoverTarget;
+        boolean blacklistPopoverOpen;
+        /** Positioning host for the cursor-anchored blacklist popover. */
+        UIElement panel;
         /** Root canvas size at the last geometry event — resize vs content churn. */
         float lastRootWidth;
         float lastRootHeight;
@@ -2042,7 +2194,7 @@ public class GinvMenuScreen extends ModularUIScreen {
                 lastTargets = targets;
                 lastFilter = filter;
                 Map<String, GuildLevels.LevelInfo> levels = collectLevels();
-                fillListsTable(listsTable, levels, filter);
+                fillListsTable(this, listsTable, levels, filter);
                 if (dataDirty) {
                     fillTargetsTable(targetsTable, levels);
                 }

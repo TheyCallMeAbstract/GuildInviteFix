@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -58,13 +59,16 @@ public final class GinvDataStore {
     }
 
 
-    public record PlayerSnapshot(String name, int invites, long lastInviteMs, ListState listState) {
+    public record PlayerSnapshot(String name, int invites, long lastInviteMs, ListState listState,
+                                 long listExpiresAt) {
     }
 
     private static final class PlayerEntry {
         int invites;
         long lastInvite;
         String list = "none";
+        /** Epoch millis when the list entry lapses; 0 or missing means permanent. */
+        long listExpiresAt;
 
         PlayerEntry() {
         }
@@ -87,6 +91,9 @@ public final class GinvDataStore {
     private static final double MIN_UI_SCALE = 0.5;
     private static final double MAX_UI_SCALE = 3.0;
 
+    /** Permanent entries are stamped {@code now + 100y}; {@code 0} also reads as permanent. */
+    private static final long PERMANENT_TTL_MS = ListDuration.PERMANENT_TTL_MS;
+
     private static boolean loaded;
     private static int version;
 
@@ -97,6 +104,9 @@ public final class GinvDataStore {
     private static boolean alwaysOnTop;
     private static double uiScale = DEFAULT_UI_SCALE;
     private static String theme = "dusk";
+
+    /** Default TTL for new blacklist entries; {@link ListDuration#FOREVER} reads as permanent. */
+    private static long blacklistTtlMs = ListDuration.DEFAULT_MS;
 
     // Off by default: the menu opens at the 100% preset (a real preset, not a
     // viewport fit). The View menu's Autoscale switch opts in explicitly.
@@ -161,6 +171,7 @@ public final class GinvDataStore {
                         if (root.has("autoscale")) autoscale = root.get("autoscale").getAsBoolean();
                         // Unknown/blank id → DUSK (GinvTheme.parse default).
                         if (root.has("theme")) theme = GinvTheme.parse(root.get("theme").getAsString()).id();
+                        if (root.has("blacklistTtlMs")) blacklistTtlMs = ListDuration.clamp(root.get("blacklistTtlMs").getAsLong());
                     }
                 }
             }
@@ -172,6 +183,7 @@ public final class GinvDataStore {
             alwaysOnTop = false;
             uiScale = DEFAULT_UI_SCALE;
             theme = "dusk";
+            blacklistTtlMs = ListDuration.DEFAULT_MS;
             autoscale = false;
         }
 
@@ -189,6 +201,23 @@ public final class GinvDataStore {
     private static double clampScale(double value) {
         if (!Double.isFinite(value)) return DEFAULT_UI_SCALE;
         return Math.max(MIN_UI_SCALE, Math.min(MAX_UI_SCALE, value));
+    }
+
+    /** Wall clock in epoch millis; the single time seam for list-expiry logic. */
+    private static long now() {
+        return System.currentTimeMillis();
+    }
+
+    private static long permanentFrom(long nowMs) {
+        return nowMs + PERMANENT_TTL_MS;
+    }
+
+    private static long defaultExpiryFor(ListState state, long nowMs) {
+        return switch (state) {
+            case NONE -> 0L;
+            case WHITELIST -> permanentFrom(nowMs);
+            case BLACKLIST -> nowMs + blacklistTtlMs;
+        };
     }
 
 
@@ -219,6 +248,7 @@ public final class GinvDataStore {
             root.addProperty("uiScale", uiScale);
             root.addProperty("autoscale", autoscale);
             root.addProperty("theme", theme);
+            root.addProperty("blacklistTtlMs", blacklistTtlMs);
             atomicWrite(settingsFile(), GSON.toJson(root));
         } catch (IOException e) {
             GuildInviteFix.LOGGER.error("[Ginv] Failed to save settings.json", e);
@@ -256,7 +286,8 @@ public final class GinvDataStore {
             ensureLoaded();
             PlayerEntry entry = find(name);
             if (entry == null) return null;
-            return new PlayerSnapshot(name, entry.invites, entry.lastInvite, ListState.parse(entry.list));
+            return new PlayerSnapshot(name, entry.invites, entry.lastInvite, ListState.parse(entry.list),
+                    entry.listExpiresAt);
         }
     }
 
@@ -266,7 +297,8 @@ public final class GinvDataStore {
             List<PlayerSnapshot> out = new ArrayList<>(players.size());
             for (Map.Entry<String, PlayerEntry> e : players.entrySet()) {
                 PlayerEntry entry = e.getValue();
-                out.add(new PlayerSnapshot(e.getKey(), entry.invites, entry.lastInvite, ListState.parse(entry.list)));
+                out.add(new PlayerSnapshot(e.getKey(), entry.invites, entry.lastInvite, ListState.parse(entry.list),
+                        entry.listExpiresAt));
             }
             return out;
         }
@@ -292,13 +324,71 @@ public final class GinvDataStore {
     //Invite policy: Whether an invite must be sent right now.
 
     public static boolean isAllowed(String name) {
+        return isAllowedAt(name, now());
+    }
+
+    /**
+     * Expiry-aware invite policy (package-private so tests can pin {@code nowMs}).
+     *
+     * <p>A lapsed list entry is <b>lifted and deleted</b> from the store as a side
+     * effect, so a temporary blacklist self-clears the first time the player is
+     * invited again. The invite is then allowed unless the surviving state blocks
+     * it: a blacklist never outlives its TTL, and whitelist-only mode still
+     * requires a live whitelist entry.
+     */
+    static boolean isAllowedAt(String name, long nowMs) {
         synchronized (LOCK) {
             ensureLoaded();
             PlayerEntry entry = find(name);
             ListState state = entry == null ? ListState.NONE : ListState.parse(entry.list);
-            if (state == ListState.BLACKLIST) return false;
-            if (whitelistOnly && state != ListState.WHITELIST) return false;
-            return true;
+            if (entry != null && state != ListState.NONE
+                    && ListPolicy.isExpired(entry.listExpiresAt, nowMs)) {
+                lapse(entry, canonicalKey(name));
+                state = ListState.NONE;
+            }
+            return ListPolicy.allows(state, whitelistOnly);
+        }
+    }
+
+    /** Clears a lapsed list entry, dropping the player record if nothing else remains. */
+    private static void lapse(PlayerEntry entry, String key) {
+        entry.list = ListState.NONE.id();
+        entry.listExpiresAt = 0L;
+        if (entry.invites == 0 && entry.lastInvite == 0) {
+            players.remove(key);
+        }
+        version++;
+        savePlayers();
+    }
+
+    /**
+     * Lifts every list entry whose TTL has passed, persisting the result.
+     * Returns {@code true} when at least one entry lapsed.
+     */
+    public static boolean purgeExpired() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            long nowMs = now();
+            boolean changed = false;
+            Iterator<Map.Entry<String, PlayerEntry>> it = players.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, PlayerEntry> e = it.next();
+                PlayerEntry entry = e.getValue();
+                if (ListState.parse(entry.list) != ListState.NONE
+                        && ListPolicy.isExpired(entry.listExpiresAt, nowMs)) {
+                    entry.list = ListState.NONE.id();
+                    entry.listExpiresAt = 0L;
+                    if (entry.invites == 0 && entry.lastInvite == 0) {
+                        it.remove();
+                    }
+                    changed = true;
+                }
+            }
+            if (changed) {
+                version++;
+                savePlayers();
+            }
+            return changed;
         }
     }
 
@@ -335,6 +425,16 @@ public final class GinvDataStore {
 
 
     public static void setListState(String name, ListState state) {
+        setListState(name, state, defaultExpiryFor(state, now()));
+    }
+
+    /**
+     * Sets a player's list state with an explicit expiry (epoch millis; {@code 0}
+     * means permanent). This is the entry point for temporary white/blacklists;
+     * the two-arg overload applies the per-type default (whitelist permanent,
+     * blacklist {@code now + blacklistTtlMs}).
+     */
+    public static void setListState(String name, ListState state, long expiresAt) {
         synchronized (LOCK) {
             ensureLoaded();
             PlayerEntry entry = find(name);
@@ -344,12 +444,23 @@ public final class GinvDataStore {
                 players.put(name, entry);
             }
             entry.list = state.id();
+            entry.listExpiresAt = state == ListState.NONE ? 0L : expiresAt;
             if (state == ListState.NONE && entry.invites == 0 && entry.lastInvite == 0) {
                 players.remove(canonicalKey(name));
             }
             version++;
             savePlayers();
         }
+    }
+
+    /**
+     * Sets a player's list state with an explicit {@link ListDuration} preset
+     * (per-player blacklist durations). Delegates to the millis overload with
+     * {@code now + duration.millis()}; for {@link ListState#NONE} the computed
+     * value is discarded and the entry's custom expiry is zeroed.
+     */
+    public static void setListState(String name, ListState state, ListDuration duration) {
+        setListState(name, state, now() + duration.millis());
     }
 
 
@@ -467,6 +578,25 @@ public final class GinvDataStore {
         }
     }
 
+    public static long blacklistTtlMs() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            return blacklistTtlMs;
+        }
+    }
+
+    public static void setBlacklistTtlMs(long value) {
+        synchronized (LOCK) {
+            ensureLoaded();
+            long clamped = ListDuration.clamp(value);
+            if (clamped != blacklistTtlMs) {
+                blacklistTtlMs = clamped;
+                version++;
+                saveSettings();
+            }
+        }
+    }
+
     public static int minDelayMs() {
         synchronized (LOCK) {
             ensureLoaded();
@@ -505,5 +635,6 @@ public final class GinvDataStore {
         synchronized (LOCK) {
             ensureLoaded();
         }
+        purgeExpired();
     }
 }
