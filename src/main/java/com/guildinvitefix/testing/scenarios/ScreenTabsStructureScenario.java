@@ -1,5 +1,6 @@
 package com.guildinvitefix.testing.scenarios;
 
+import com.ginv.data.GinvDataStore;
 import com.ginv.ui.GinvMenuScreen;
 import com.ginv.ui.GinvMenuWindow;
 import com.guildinvitefix.testing.layout.LayoutAssert;
@@ -45,6 +46,8 @@ public class ScreenTabsStructureScenario implements UIScenario {
             GinvMenuWindow stale = GinvMenuWindow.active();
             if (stale != null) stale.onCloseRequested();
             if (ctx.screen() != null) ctx.mc().setScreen(null);
+            GinvDataStore.setListsLevelFilter(null, null);
+            GinvDataStore.setQueueAutoRun(false);
         })
                 .ticks(1)
                 .openScreen("gmenu", ctx -> new GinvMenuScreen())
@@ -138,8 +141,8 @@ public class ScreenTabsStructureScenario implements UIScenario {
                             .visible().list().stream()
                             .map(ElementRef::text)
                             .collect(Collectors.toSet());
-                    return labels.equals(Set.of("Invite delay (ms):", "Whitelist only:",
-                            "Blacklist duration:", "Theme:"));
+                    return labels.equals(Set.of("Invite delay (ms):", "Keep queue running:",
+                            "Whitelist only:", "Blacklist duration:", "Theme:"));
                 });
 
         // T13 containment: with Settings open (last slug walked) the pane and
@@ -183,6 +186,8 @@ public class ScreenTabsStructureScenario implements UIScenario {
                     GinvMenuWindow window = GinvMenuWindow.active();
                     if (window != null) window.onCloseRequested();
                     if (ctx.screen() != null) ctx.mc().setScreen(null);
+                    GinvDataStore.setListsLevelFilter(null, null);
+                    GinvDataStore.setQueueAutoRun(false);
                 });
     }
 

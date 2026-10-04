@@ -3,6 +3,7 @@ package com.ginv.command;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.ginv.data.GinvDataStore;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
@@ -30,6 +31,7 @@ public class GlvlCommand {
 
     private static int execute(CommandContext<FabricClientCommandSource> context) {
         int minLevel = IntegerArgumentType.getInteger(context, "level");
+        GinvDataStore.setGuildLevelThreshold(minLevel);
         LevelQueueResult result = GinvCommand.queueByLevel(minLevel);
         var source = context.getSource();
 

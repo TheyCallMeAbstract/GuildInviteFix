@@ -41,6 +41,8 @@ public class LevelQueueMockScenario implements UIScenario {
             if (GinvCommand.isFrozen()) GinvCommand.toggleFreeze();
             GinvDataStore.setWhitelistOnly(false);
             GinvDataStore.setDelays(50, 50);
+            GinvDataStore.setListsLevelFilter(null, null);
+            GinvDataStore.setQueueAutoRun(false);
             // No gateway yet: the level queue must show its precondition state.
             GuildTestGateway.reset();
         })
@@ -75,6 +77,8 @@ public class LevelQueueMockScenario implements UIScenario {
                     if (GinvCommand.isFrozen()) GinvCommand.toggleFreeze();
                     GinvDataStore.setDelays(220, 720);
                     GinvDataStore.setWhitelistOnly(false);
+                    GinvDataStore.setListsLevelFilter(null, null);
+                    GinvDataStore.setQueueAutoRun(false);
                     if (ctx.screen() != null) ctx.mc().setScreen(null);
                 });
     }

@@ -17,6 +17,8 @@ public class GuildInviteFixClient implements ClientModInitializer {
     public void onInitializeClient() {
         // Persisted invite/list/settings store (also loadable on first use).
         GinvDataStore.init();
+        // Startup freeze state follows the persisted "Keep queue running" policy.
+        GinvCommand.initFromSettings();
 
         // Draws player faces for the menu's row icons.
         GuiTextureRendererRegistry.register(PlayerHeadTexture.class, PlayerHeadTexture.Renderer.INSTANCE);

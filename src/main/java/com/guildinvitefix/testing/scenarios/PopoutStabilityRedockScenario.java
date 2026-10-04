@@ -1,5 +1,6 @@
 package com.guildinvitefix.testing.scenarios;
 
+import com.ginv.data.GinvDataStore;
 import com.ginv.ui.GinvMenuScreen;
 import com.ginv.ui.GinvMenuWindow;
 import com.lowdragmc.lowdraglib2.registry.RegistrationEnvironment;
@@ -37,6 +38,8 @@ public class PopoutStabilityRedockScenario implements UIScenario {
             GinvMenuWindow stale = GinvMenuWindow.active();
             if (stale != null) stale.onCloseRequested();
             if (ctx.screen() != null) ctx.mc().setScreen(null);
+            GinvDataStore.setListsLevelFilter(null, null);
+            GinvDataStore.setQueueAutoRun(false);
         })
                 .ticks(1)
                 .openScreen("gmenu", ctx -> new GinvMenuScreen())
@@ -105,6 +108,8 @@ public class PopoutStabilityRedockScenario implements UIScenario {
                     GinvMenuWindow window = GinvMenuWindow.active();
                     if (window != null) window.onCloseRequested();
                     if (ctx.screen() != null) ctx.mc().setScreen(null);
+                    GinvDataStore.setListsLevelFilter(null, null);
+                    GinvDataStore.setQueueAutoRun(false);
                 });
     }
 }

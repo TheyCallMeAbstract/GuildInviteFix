@@ -39,6 +39,8 @@ public class ScalePresetScenario implements UIScenario {
             if (ctx.screen() != null) ctx.mc().setScreen(null);
             GinvDataStore.setUiScale(1.0);
             GinvDataStore.setAutoscale(true);
+            GinvDataStore.setListsLevelFilter(null, null);
+            GinvDataStore.setQueueAutoRun(false);
         })
                 .ticks(1)
                 .openScreen("gmenu", ctx -> new GinvMenuScreen())
@@ -97,6 +99,8 @@ public class ScalePresetScenario implements UIScenario {
                 .teardown("restore scale and autoscale", ctx -> {
                     GinvDataStore.setUiScale(1.0);
                     GinvDataStore.setAutoscale(false);
+                    GinvDataStore.setListsLevelFilter(null, null);
+                    GinvDataStore.setQueueAutoRun(false);
                     if (ctx.screen() != null) ctx.mc().setScreen(null);
                 });
     }

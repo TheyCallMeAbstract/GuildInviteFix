@@ -1,6 +1,7 @@
 package com.guildinvitefix.testing.scenarios;
 
 import com.ginv.command.GmenuCommand;
+import com.ginv.data.GinvDataStore;
 import com.ginv.testing.GuildTestGateway;
 import com.ginv.ui.GinvMenuScreen;
 import com.ginv.ui.GinvMenuWindow;
@@ -42,6 +43,8 @@ public class MenuOpenRegressionScenario implements UIScenario {
             // A fixture left behind by a previous scenario would flip the
             // chip's class — start from the real (non-SkyBlock) verdict.
             GuildTestGateway.reset();
+            GinvDataStore.setListsLevelFilter(null, null);
+            GinvDataStore.setQueueAutoRun(false);
         })
                 .ticks(1)
                 // The real /gmenu path: arm the deferred open, let the
@@ -79,6 +82,8 @@ public class MenuOpenRegressionScenario implements UIScenario {
                     GinvMenuWindow window = GinvMenuWindow.active();
                     if (window != null) window.onCloseRequested();
                     if (ctx.screen() != null) ctx.mc().setScreen(null);
+                    GinvDataStore.setListsLevelFilter(null, null);
+                    GinvDataStore.setQueueAutoRun(false);
                 });
     }
 }

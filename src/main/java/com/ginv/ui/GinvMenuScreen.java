@@ -827,7 +827,7 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         TextField levelField = new TextField().setNumbersOnlyInt(0, 999);
         levelField.setId("ginv_level_input");
-        levelField.setText("0");
+        levelField.setText(String.valueOf(GinvDataStore.guildLevelThreshold()));
         levelField.textFieldStyle(style -> style.fontSize(u(10)));
         levelField.layout(layout -> {
             layout.width(u(44));
@@ -846,6 +846,7 @@ public class GinvMenuScreen extends ModularUIScreen {
                 feedback(feedbackLabel, "Enter a level.", FeedbackKind.ERR);
                 return;
             }
+            GinvDataStore.setGuildLevelThreshold(minLevel);
             LevelQueueResult result = GinvCommand.queueByLevel(minLevel);
             String text = switch (result.error()) {
                 case NOT_SKYBLOCK -> "Not in SkyBlock.";
@@ -946,6 +947,12 @@ public class GinvMenuScreen extends ModularUIScreen {
 
         TextField minLevelField = levelFilterField("ginv_lists_level_min", "min");
         TextField maxLevelField = levelFilterField("ginv_lists_level_max", "max");
+        // Seed the persisted bounds (blank when unset) so the range survives a
+        // menu close/reopen.
+        Integer storedMin = GinvDataStore.listsLevelMin();
+        Integer storedMax = GinvDataStore.listsLevelMax();
+        if (storedMin != null) minLevelField.setText(String.valueOf(storedMin));
+        if (storedMax != null) maxLevelField.setText(String.valueOf(storedMax));
 
         Button filterMenu = new Button();
         filterMenu.setId("ginv_lists_filter_menu");
@@ -1107,6 +1114,21 @@ public class GinvMenuScreen extends ModularUIScreen {
         });
         delayCtl.addChildren(minDelayField, dashLabel(), maxDelayField, applyButton);
 
+        // Queue policy: persisted auto-run intent. On = do not start frozen
+        // (and resume live immediately); off = start frozen (today's default).
+        Switch queueAutoRunSwitch = new Switch();
+        queueAutoRunSwitch.setId("ginv_queue_auto_run");
+        queueAutoRunSwitch.setOn(GinvDataStore.queueAutoRun(), false);
+        queueAutoRunSwitch.registerValueListener(value -> {
+            boolean on = Boolean.TRUE.equals(value);
+            GinvDataStore.setQueueAutoRun(on);
+            if (on) {
+                GinvCommand.setFrozen(false);
+            }
+        });
+        queueAutoRunSwitch.getStyle().tooltips("Start the queue running instead of frozen");
+        Label queueAutoRunLabel = bodyLabel("Keep queue running:");
+
         Switch whitelistSwitch = new Switch();
         whitelistSwitch.setOn(GinvDataStore.whitelistOnly(), false);
         whitelistSwitch.registerValueListener(value ->
@@ -1192,6 +1214,7 @@ public class GinvMenuScreen extends ModularUIScreen {
         form.setId("ginv_settings_form");
         form.addFullWidth(sectionHeader("Invites"));
         form.addSetting(delayLabel, delayCtl, true);
+        form.addSetting(queueAutoRunLabel, queueAutoRunSwitch, false);
         form.addFullWidth(sectionHeader("Filtering"));
         form.addSetting(whitelistLabel, whitelistSwitch, false);
         form.addSetting(blacklistTtlLabel, blacklistTtlSelector, true);
@@ -2193,6 +2216,11 @@ public class GinvMenuScreen extends ModularUIScreen {
                 lastOnline = online;
                 lastTargets = targets;
                 lastFilter = filter;
+                // Persist the parsed bounds only on an actual filter change; the
+                // store no-ops when both bounds are unchanged (search-only edits).
+                if (filterDirty) {
+                    GinvDataStore.setListsLevelFilter(filter.minLevel(), filter.maxLevel());
+                }
                 Map<String, GuildLevels.LevelInfo> levels = collectLevels();
                 fillListsTable(this, listsTable, levels, filter);
                 if (dataDirty) {

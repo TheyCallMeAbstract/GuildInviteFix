@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Persistent, thread-safe store for invite tracking, list membership and queue settings.
@@ -90,6 +91,9 @@ public final class GinvDataStore {
     private static final double DEFAULT_UI_SCALE = 1.0;
     private static final double MIN_UI_SCALE = 0.5;
     private static final double MAX_UI_SCALE = 3.0;
+    private static final int DEFAULT_GUILD_LEVEL_THRESHOLD = 0;
+    private static final int MIN_GUILD_LEVEL_THRESHOLD = 0;
+    private static final int MAX_GUILD_LEVEL_THRESHOLD = 999;
 
     /** Permanent entries are stamped {@code now + 100y}; {@code 0} also reads as permanent. */
     private static final long PERMANENT_TTL_MS = ListDuration.PERMANENT_TTL_MS;
@@ -105,8 +109,19 @@ public final class GinvDataStore {
     private static double uiScale = DEFAULT_UI_SCALE;
     private static String theme = "dusk";
 
+    /** Control tab "Queue ≥" threshold; default 0. */
+    private static int guildLevelThreshold = DEFAULT_GUILD_LEVEL_THRESHOLD;
+
     /** Default TTL for new blacklist entries; {@link ListDuration#FOREVER} reads as permanent. */
     private static long blacklistTtlMs = ListDuration.DEFAULT_MS;
+
+    /** Lists level-filter bounds; {@code null} means unset (no key written). */
+    private static Integer listsLevelMin;
+    private static Integer listsLevelMax;
+
+    // Off by default: the queue still starts frozen (today's behaviour). The
+    // Settings "Keep queue running" switch opts in to starting unfrozen.
+    private static boolean queueAutoRun = false;
 
     // Off by default: the menu opens at the 100% preset (a real preset, not a
     // viewport fit). The View menu's Autoscale switch opts in explicitly.
@@ -156,6 +171,8 @@ public final class GinvDataStore {
             players.clear();
         }
 
+        // Missing key → default threshold (0).
+        guildLevelThreshold = DEFAULT_GUILD_LEVEL_THRESHOLD;
         try {
             Path file = settingsFile();
             if (Files.exists(file)) {
@@ -172,6 +189,17 @@ public final class GinvDataStore {
                         // Unknown/blank id → DUSK (GinvTheme.parse default).
                         if (root.has("theme")) theme = GinvTheme.parse(root.get("theme").getAsString()).id();
                         if (root.has("blacklistTtlMs")) blacklistTtlMs = ListDuration.clamp(root.get("blacklistTtlMs").getAsLong());
+                        // Absent key or explicit JSON null → unset (null) bound.
+                        if (root.has("listsLevelMin") && !root.get("listsLevelMin").isJsonNull()) {
+                            listsLevelMin = root.get("listsLevelMin").getAsInt();
+                        }
+                        if (root.has("listsLevelMax") && !root.get("listsLevelMax").isJsonNull()) {
+                            listsLevelMax = root.get("listsLevelMax").getAsInt();
+                        }
+                        if (root.has("queueAutoRun")) queueAutoRun = root.get("queueAutoRun").getAsBoolean();
+                        if (root.has("guildLevelThreshold")) {
+                            guildLevelThreshold = clampGuildLevelThreshold(root.get("guildLevelThreshold").getAsInt());
+                        }
                     }
                 }
             }
@@ -185,6 +213,10 @@ public final class GinvDataStore {
             theme = "dusk";
             blacklistTtlMs = ListDuration.DEFAULT_MS;
             autoscale = false;
+            listsLevelMin = null;
+            listsLevelMax = null;
+            queueAutoRun = false;
+            guildLevelThreshold = DEFAULT_GUILD_LEVEL_THRESHOLD;
         }
 
         if (minDelayMs > maxDelayMs) {
@@ -201,6 +233,10 @@ public final class GinvDataStore {
     private static double clampScale(double value) {
         if (!Double.isFinite(value)) return DEFAULT_UI_SCALE;
         return Math.max(MIN_UI_SCALE, Math.min(MAX_UI_SCALE, value));
+    }
+
+    private static int clampGuildLevelThreshold(int value) {
+        return Math.max(MIN_GUILD_LEVEL_THRESHOLD, Math.min(MAX_GUILD_LEVEL_THRESHOLD, value));
     }
 
     /** Wall clock in epoch millis; the single time seam for list-expiry logic. */
@@ -249,6 +285,11 @@ public final class GinvDataStore {
             root.addProperty("autoscale", autoscale);
             root.addProperty("theme", theme);
             root.addProperty("blacklistTtlMs", blacklistTtlMs);
+            // Absence means unset; only write a bound when it is set.
+            if (listsLevelMin != null) root.addProperty("listsLevelMin", listsLevelMin);
+            if (listsLevelMax != null) root.addProperty("listsLevelMax", listsLevelMax);
+            root.addProperty("queueAutoRun", queueAutoRun);
+            root.addProperty("guildLevelThreshold", guildLevelThreshold);
             atomicWrite(settingsFile(), GSON.toJson(root));
         } catch (IOException e) {
             GuildInviteFix.LOGGER.error("[Ginv] Failed to save settings.json", e);
@@ -630,6 +671,79 @@ public final class GinvDataStore {
         }
     }
 
+
+    /** Persisted Lists min-level bound, or {@code null} when unset. */
+    public static Integer listsLevelMin() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            return listsLevelMin;
+        }
+    }
+
+    /** Persisted Lists max-level bound, or {@code null} when unset. */
+    public static Integer listsLevelMax() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            return listsLevelMax;
+        }
+    }
+
+    /**
+     * Persists the Lists level-filter bounds (either may be {@code null} = unset).
+     * Writes and bumps {@link #version()} only when a bound actually changes.
+     */
+    public static void setListsLevelFilter(Integer min, Integer max) {
+        synchronized (LOCK) {
+            ensureLoaded();
+            if (!Objects.equals(listsLevelMin, min) || !Objects.equals(listsLevelMax, max)) {
+                listsLevelMin = min;
+                listsLevelMax = max;
+                version++;
+                saveSettings();
+            }
+        }
+    }
+
+    /** True when the queue should start running (does not start frozen). */
+    public static boolean queueAutoRun() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            return queueAutoRun;
+        }
+    }
+
+    /** Persists the queue auto-run policy; bumps {@link #version()} only on change. */
+    public static void setQueueAutoRun(boolean value) {
+        synchronized (LOCK) {
+            ensureLoaded();
+            if (queueAutoRun != value) {
+                queueAutoRun = value;
+                version++;
+                saveSettings();
+            }
+        }
+    }
+
+    /** Control tab "Queue ≥" guild-level threshold (0..999; default 0). */
+    public static int guildLevelThreshold() {
+        synchronized (LOCK) {
+            ensureLoaded();
+            return guildLevelThreshold;
+        }
+    }
+
+    /** Persists the Control tab threshold, clamped to 0..999; bumps {@link #version()} only on change. */
+    public static void setGuildLevelThreshold(int value) {
+        synchronized (LOCK) {
+            ensureLoaded();
+            int clamped = clampGuildLevelThreshold(value);
+            if (guildLevelThreshold != clamped) {
+                guildLevelThreshold = clamped;
+                version++;
+                saveSettings();
+            }
+        }
+    }
 
     public static void init() {
         synchronized (LOCK) {

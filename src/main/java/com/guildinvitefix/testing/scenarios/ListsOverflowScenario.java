@@ -58,6 +58,8 @@ public class ListsOverflowScenario implements UIScenario {
             if (GinvCommand.isFrozen()) GinvCommand.toggleFreeze();
             GinvDataStore.setWhitelistOnly(false);
             GinvDataStore.setBlacklistTtlMs(ListDuration.DEFAULT_MS);
+            GinvDataStore.setListsLevelFilter(null, null);
+            GinvDataStore.setQueueAutoRun(false);
             for (String name : List.copyOf(GinvDataStore.trackedNames())) {
                 GinvDataStore.removePlayer(name);
             }
@@ -123,6 +125,8 @@ public class ListsOverflowScenario implements UIScenario {
                     if (GinvCommand.isFrozen()) GinvCommand.toggleFreeze();
                     GinvDataStore.setWhitelistOnly(false);
                     GinvDataStore.setBlacklistTtlMs(ListDuration.DEFAULT_MS);
+                    GinvDataStore.setListsLevelFilter(null, null);
+                    GinvDataStore.setQueueAutoRun(false);
                     for (String name : List.copyOf(GinvDataStore.trackedNames())) {
                         GinvDataStore.removePlayer(name);
                     }

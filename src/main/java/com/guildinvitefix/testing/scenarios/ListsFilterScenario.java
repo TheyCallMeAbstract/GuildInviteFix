@@ -12,6 +12,7 @@ import com.guildinvitefix.testing.layout.LayoutAssert;
 import com.guildinvitefix.testing.layout.LayoutAssert.Box;
 import com.lowdragmc.lowdraglib2.registry.RegistrationEnvironment;
 import com.lowdragmc.lowdraglib2.registry.annotation.LDLRegisterClient;
+import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
 import com.lowdragmc.lowdraglib2.uitest.ElementBounds;
 import com.lowdragmc.lowdraglib2.uitest.ElementRef;
 import com.lowdragmc.lowdraglib2.uitest.ScenarioBuilder;
@@ -53,6 +54,7 @@ public class ListsFilterScenario implements UIScenario {
             if (GinvCommand.isFrozen()) GinvCommand.toggleFreeze();
             GinvDataStore.setWhitelistOnly(false);
             GinvDataStore.setBlacklistTtlMs(ListDuration.DEFAULT_MS);
+            GinvDataStore.setListsLevelFilter(null, null);
             for (String name : List.copyOf(GinvDataStore.trackedNames())) {
                 GinvDataStore.removePlayer(name);
             }
@@ -139,6 +141,30 @@ public class ListsFilterScenario implements UIScenario {
                 .click("#ginv_lists_filter_clear")
                 .ticks(1)
                 .check("Clear restores all rows", ctx -> rows(ctx) == 4)
+                // The parsed LVL range is persisted; closing and reopening the
+                // menu must restore the bound text and re-apply the filter.
+                .step("persist a level range, then close the menu", ctx -> {
+                    GinvDataStore.setListsLevelFilter(40, 50);
+                    GinvMenuWindow active = GinvMenuWindow.active();
+                    if (active != null) active.onCloseRequested();
+                    ctx.mc().setScreen(null);
+                })
+                .ticks(1)
+                .openScreen("gmenu", ctx -> new GinvMenuScreen())
+                .awaitScreen(GinvMenuScreen.class)
+                .awaitModularUI()
+                .click("#ginv_tab_lists")
+                .ticks(1)
+                .check("the persisted min bound is restored into the field", ctx ->
+                        "40".equals(levelField(ctx, "#ginv_lists_level_min")))
+                .check("the persisted max bound is restored into the field", ctx ->
+                        "50".equals(levelField(ctx, "#ginv_lists_level_max")))
+                .check("the persisted range is re-applied on reopen", ctx -> rows(ctx) == 1)
+                .step("clear the persisted range again", ctx ->
+                        GinvDataStore.setListsLevelFilter(null, null))
+                .ticks(1)
+                .check("clearing removes the bound from the store", ctx ->
+                        GinvDataStore.listsLevelMin() == null && GinvDataStore.listsLevelMax() == null)
                 .typeInto("#ginv_lists_search", "zzz")
                 .ticks(1)
                 .check("a fully filtered-out list shows the empty state", ctx -> rows(ctx) == 0)
@@ -207,11 +233,20 @@ public class ListsFilterScenario implements UIScenario {
                     if (GinvCommand.isFrozen()) GinvCommand.toggleFreeze();
                     GinvDataStore.setWhitelistOnly(false);
                     GinvDataStore.setBlacklistTtlMs(ListDuration.DEFAULT_MS);
+                    GinvDataStore.setListsLevelFilter(null, null);
                     for (String name : List.copyOf(GinvDataStore.trackedNames())) {
                         GinvDataStore.removePlayer(name);
                     }
                     if (ctx.screen() != null) ctx.mc().setScreen(null);
                 });
+    }
+
+    /** Trimmed value of a level-filter {@link TextField}, or null when absent. */
+    private static String levelField(TestContext ctx, String selector) {
+        TextField field = ctx.query(selector).one().as(TextField.class);
+        if (field == null) return null;
+        String value = field.getValue();
+        return value == null ? "" : value.trim();
     }
 
     /** Lists rows with real laid-out area (hidden panes match with a zero box). */

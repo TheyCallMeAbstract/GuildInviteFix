@@ -33,8 +33,9 @@ public class GinvCommand {
     });
     private static final Random random = new Random();
 
-    // Starts frozen: nothing is sent until the user resumes (hero STOP/RESUME
-    // button or /gfreeze). Not persisted — always frozen on a fresh process.
+    // Starts frozen by default: nothing is sent until the user resumes (hero
+    // STOP/RESUME button or /gfreeze). The persisted "Keep queue running"
+    // policy can override the startup value via initFromSettings().
     private static volatile boolean frozen = true;
 
     /**
@@ -257,12 +258,19 @@ public class GinvCommand {
         if (pendingInvites.isEmpty()) return;
         scheduler.schedule(() -> {
             if (frozen) return; // will be resumed by toggleFreeze()
-            String name = pendingInvites.poll();
-            if (name != null && !isSelf(name, selfName()) && GinvDataStore.isAllowed(name)) {
-                if (InviteRoute.send(name)) {
-                    GinvDataStore.recordInvite(name);
+            // Peek before polling: if the client connection is momentarily
+            // unavailable (world swap / reconnect) InviteRoute.send returns
+            // false and the name must stay pending, not be dropped.
+            String name = pendingInvites.peek();
+            if (name == null) return;
+            if (!isSelf(name, selfName()) && GinvDataStore.isAllowed(name)) {
+                if (!InviteRoute.send(name)) {
+                    processNext(); // retry the same pending name after the delay
+                    return;
                 }
+                GinvDataStore.recordInvite(name);
             }
+            pendingInvites.poll();
             processNext();
         }, nextDelayMs(), TimeUnit.MILLISECONDS);
     }
@@ -293,6 +301,14 @@ public class GinvCommand {
 
     // --- Freeze control ---
 
+    /**
+     * Applies the persisted queue policy at client init: the queue starts
+     * unfrozen only when "Keep queue running" ({@code queueAutoRun}) is on.
+     */
+    public static void initFromSettings() {
+        frozen = !GinvDataStore.queueAutoRun();
+    }
+
     public static boolean isFrozen() {
         return frozen;
     }
@@ -301,6 +317,15 @@ public class GinvCommand {
         frozen = !frozen;
         if (!frozen) {
             processNext(); // resume processing
+        }
+    }
+
+    /** Aligns the live freeze state with the persisted policy (UI switch). */
+    public static void setFrozen(boolean value) {
+        if (frozen == value) return;
+        frozen = value;
+        if (!frozen) {
+            processNext(); // resume processing immediately
         }
     }
 

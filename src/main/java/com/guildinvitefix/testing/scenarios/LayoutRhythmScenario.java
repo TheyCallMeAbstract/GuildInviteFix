@@ -54,6 +54,8 @@ public class LayoutRhythmScenario implements UIScenario {
             if (ctx.screen() != null) ctx.mc().setScreen(null);
             GinvDataStore.setUiScale(1.0);
             GinvDataStore.setAutoscale(false);
+            GinvDataStore.setListsLevelFilter(null, null);
+            GinvDataStore.setQueueAutoRun(false);
             GuildTestGateway.install(List.of(
                     new GuildDirectory.Entry("Alice", new GuildLevels.LevelInfo(42, 0xFF55FF55)),
                     new GuildDirectory.Entry("Bob", new GuildLevels.LevelInfo(15, 0xFF55FFFF)),
@@ -169,6 +171,8 @@ public class LayoutRhythmScenario implements UIScenario {
                     GinvDataStore.setListState("Bob", GinvDataStore.ListState.NONE);
                     GinvDataStore.setUiScale(1.0);
                     GinvDataStore.setAutoscale(false);
+                    GinvDataStore.setListsLevelFilter(null, null);
+                    GinvDataStore.setQueueAutoRun(false);
                     if (ctx.screen() != null) ctx.mc().setScreen(null);
                 });
     }

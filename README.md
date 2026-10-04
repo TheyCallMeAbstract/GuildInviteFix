@@ -27,6 +27,7 @@ Your own name is always excluded from invites and tab-completion suggestions.
 
 Invite all players in the tab list with a guild level **≥** the given threshold.
 Requires being in a SkyBlock instance. Players without a level (NPCs) are skipped.
+The last level you used is remembered as the default in the menu.
 
 ```
 /gfreeze
@@ -35,7 +36,8 @@ Requires being in a SkyBlock instance. Players without a level (NPCs) are skippe
 Toggle freeze on the invite queue. When frozen, no invites are sent but new targets are still queued.
 Run again to resume sending. The mod **starts frozen**: no invites are sent
 until you resume, either by pressing **STOP/RESUME INVITES** in the menu or by
-running `/gfreeze`.
+running `/gfreeze`. Turn on **Keep queue running** in the Settings tab to start
+running instead and let the queue continue across menu close and world changes.
 
 ```
 /gmenu
@@ -46,17 +48,21 @@ Open the in-game menu (LDLib2 UI) as a popup over the HUD, with three tabs:
 - **Control** state banner (RUNNING/STOPPED + pending), the big
   **STOP/RESUME INVITES** toggle, queue by name(s) (queued names are also
   recorded for the Lists tab), queue by guild level
-  (live tab-range caption inside SkyBlock; disabled outside), and the
+  (the level is remembered across menu opens; live tab-range caption inside
+  SkyBlock; disabled outside), and the
   current-target list with per-row remove, per-player invite count/last-invite
   age and **Clear**
 - **Settings** sectioned into **Invites** (invite delay range in ms with an
-  **Apply** button), **Filtering** (whitelist only plus a configurable
-  **Blacklist duration** default 7 days; whitelist entries are always
-  permanent) and **Appearance** (the menu theme picker)
+  **Apply** button, plus a **Keep queue running** switch that starts the queue
+  running and keeps it going across menu close and world changes), **Filtering**
+  (whitelist only plus a configurable **Blacklist duration** default 7 days;
+  whitelist entries are always permanent) and **Appearance** (the menu theme
+  picker)
 - **Lists** whitelist/blacklist management with a player-name search box
   plus a **LVL ▾** popover holding an inclusive min/max range (each field
-  optional; blank = unset) and a **Clear** action; the filter applies live and
-  an unknown-level player is excluded whenever a bound is set. Each row shows
+  optional; blank = unset) and a **Clear** action; the range is remembered
+  across menu opens, the filter applies live, and an unknown-level player is
+  excluded whenever a bound is set. Each row shows
   the player's head, name and guild level badge (colored like the server
   renders it) immediately after the name, with three borderless icon buttons
   a whitelist page, a blacklist page and a lightning bolt to remove/unqueue
