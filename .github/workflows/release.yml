@@ -58,6 +58,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
+          # Anchor the tag to this run's commit. Without this, GitHub creates the
+          # tag from the repo's DEFAULT branch (v1.21.11), so "Source code (zip)"
+          # would serve the wrong branch while the jar asset stays correct.
+          target_commitish: ${{ github.sha }}
           name: "GuildInviteFix ${{ inputs.version }} for Minecraft ${{ steps.versions.outputs.minecraft_version }}"
           body: |
             ## GuildInviteFix ${{ inputs.version }}
