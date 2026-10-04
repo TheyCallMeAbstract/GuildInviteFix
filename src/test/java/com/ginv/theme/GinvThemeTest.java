@@ -35,6 +35,7 @@ class GinvThemeTest {
         assertEquals("plum", GinvTheme.PLUM.id());
         assertEquals("paper", GinvTheme.PAPER.id());
         assertEquals("latte", GinvTheme.LATTE.id());
+        assertEquals("bee", GinvTheme.BEE.id());
     }
 
     @Test
@@ -53,6 +54,7 @@ class GinvThemeTest {
         assertFalse(GinvTheme.PLUM.light());
         assertTrue(GinvTheme.PAPER.light());
         assertTrue(GinvTheme.LATTE.light());
+        assertFalse(GinvTheme.BEE.light());
     }
 
     @Test

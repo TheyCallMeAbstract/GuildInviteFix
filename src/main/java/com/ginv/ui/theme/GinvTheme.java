@@ -26,7 +26,8 @@ public enum GinvTheme {
     MINT,
     PLUM,
     PAPER,
-    LATTE;
+    LATTE,
+    BEE;
 
     /** Lower-case id: persisted in {@code settings.json} and used in file names. */
     public String id() {
@@ -79,6 +80,7 @@ public enum GinvTheme {
             case PLUM -> StylesheetManager.PLUM;
             case PAPER -> StylesheetManager.PAPER;
             case LATTE -> StylesheetManager.LATTE;
+            case BEE -> StylesheetManager.DUSK;
         };
     }
 

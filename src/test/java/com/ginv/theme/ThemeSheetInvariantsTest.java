@@ -40,7 +40,8 @@ class ThemeSheetInvariantsTest {
     private static final Map<String, String> DARK_INK = Map.of(
             "carbon", "#FFEDEDED",
             "mint", "#FFE4ECE8",
-            "plum", "#FFECE7F2");
+            "plum", "#FFECE7F2",
+            "bee", "#FFF5F0DF");
     /** Light palettes and the body ink each must resolve to. */
     private static final Map<String, String> LIGHT_INK = Map.of(
             "paper", "#FF1B1E24",
@@ -187,6 +188,11 @@ class ThemeSheetInvariantsTest {
     @Test
     void latteMatchesTheCommittedGolden() throws IOException {
         assertMatchesGolden("office-latte.lss");
+    }
+
+    @Test
+    void beeMatchesTheCommittedGolden() throws IOException {
+        assertMatchesGolden("office-bee.lss");
     }
 
     private void assertMatchesGolden(String fileName) throws IOException {
