@@ -45,6 +45,10 @@ dependencies {
 	// Hard runtime dependencies declared by ldlib2's fabric.mod.json
 	implementation "dev.architectury:architectury-fabric:${project.architectury_api_version}"
 	implementation "dev.isxander:yet-another-config-lib:${project.yacl_version}"
+	// ldlib2 .41 stopped shading Kotlin and now requires FLK at runtime;
+	// without it Fabric Loader fails dependency resolution and the dev
+	// client never starts. We don't call any Kotlin API ourselves.
+	implementation "net.fabricmc:fabric-language-kotlin:${project.fabric_language_kotlin_version}"
 
 	// Headless JUnit for the pure logic (parse rules, queue-result contract).
 	// The GUI suite lives in the uitest scenarios instead — see README.

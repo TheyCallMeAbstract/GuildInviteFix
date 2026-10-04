@@ -10,6 +10,7 @@ A client-side Fabric mod that batch-sends guild invites to multiple players at o
 - **LDLib2** (Fabric build from [ldlib2-Architectury](https://github.com/TheyCallMeAbstract/ldlib2-Architectury), required)
 - **Architectury API ≥ 20.0.12** (required by LDLib2)
 - **YACL ≥ 3.9.1** (required by LDLib2)
+- **Fabric Language Kotlin ≥ 1.13.11** (required by LDLib2)
 
 ## Usage
 
@@ -68,7 +69,7 @@ Open the in-game menu (LDLib2 UI) as a popup over the HUD, with three tabs:
 1. Install Fabric Loader for Minecraft 26.1.2.
 2. Download the latest release JAR from [Releases](https://github.com/TheyCallMeAbstract/GuildInviteFix/releases).
 3. Place the JAR in your `.minecraft/mods/` folder.
-4. Also install in the same folder: **Fabric API**, **LDLib2** (Fabric build), **Architectury API**, and **YACL**.
+4. Also install in the same folder: **Fabric API**, **LDLib2** (Fabric build), **Architectury API**, **YACL**, and **Fabric Language Kotlin**.
 
 ## Building from source
 
